@@ -1969,9 +1969,6 @@
         function generatePrivateStickerGrid() {
             // Bersihkan dulu
             privateStickerGrid.innerHTML = '';
-            
-            // Debug: Log untuk memastikan fungsi dipanggil
-            console.log('Generating private sticker grid, stickers count:', stickers.length);
 
             stickers.forEach((sticker, index) => {
                 const div = document.createElement('div');
@@ -1981,7 +1978,6 @@
                     // Emoji sticker
                     div.textContent = sticker;
                     div.onclick = () => sendPrivateSticker(sticker);
-                    console.log('Added emoji sticker:', sticker);
                 } else {
                     // Image sticker from CDN
                     const img = document.createElement('img');
@@ -1992,14 +1988,10 @@
                     img.style.objectFit = 'contain';
                     div.appendChild(img);
                     div.onclick = () => sendPrivateSticker(sticker);
-                    console.log('Added image sticker:', sticker.name);
                 }
                 
                 privateStickerGrid.appendChild(div);
             });
-            
-            // Debug: Log jumlah sticker yang ditambahkan
-            console.log('Private sticker grid items count:', privateStickerGrid.children.length);
         }
 
         function sendPrivateSticker(sticker) {
@@ -2068,7 +2060,12 @@
             const iconMap = {
                 'pdf': '📄',
                 'doc': '📝', 'docx': '📝',
-                'xls': '', 'xlsx': '📊',
+                'xls': '📊', 'xlsx': '📊',
+                'ppt': '📽️', 'pptx': '📽️',
+                'txt': '📃',
+                'zip': '🗜️', 'rar': '🗜️', '7z': '🗜️',
+                'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
+                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬',
                 'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️'
             };
             return iconMap[ext] || '📎';
