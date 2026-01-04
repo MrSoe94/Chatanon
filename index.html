@@ -924,6 +924,11 @@
         let privateChatHistory = {};
         let mentionStartPos = -1;
 
+        // Mention Suggestion Variables
+        let mentionSuggestions = [];
+        let selectedMentionIndex = -1;
+        let isMentionMode = false;
+
         // Reply Variables
         let replyToMessage = null;
         let messageIdCounter = 0;
