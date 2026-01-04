@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anonymous Chat - No Login</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --chat-bg: #1e293b;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --bubble-me: #6366f1;
+            --bubble-them: #334155;
+            --border: #334155;
+            --danger: #ef4444;
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- LOGIN SCREEN --- */
+        #login-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.3s ease;
+        }
+
+        .login-card {
+            background: var(--chat-bg);
+            padding: 2rem;
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .login-card h1 {
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .login-card p {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-small {
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            background: var(--bg-color);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        /* --- CHAT SCREEN --- */
+        #chat-screen {
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            height: 100%;
+        }
+
+        header {
+            padding: 15px 20px;
+            background: var(--chat-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .room-info h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .room-info span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: var(--bg-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .btn-leave {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            padding: 8px 16px;
+        }
+
+        .btn-leave:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        /* Message Area */
+        #messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            max-width: 75%;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.system {
+            align-self: center;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin: 10px 0;
+            text-align: center;
+            border: 1px dashed var(--border);
+            padding: 5px 10px;
+            border-radius: 20px;
+        }
+
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .meta {
+            font-size: 0.7rem;
+            margin-top: 4px;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Message Alignment */
+        .message.me {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .message.them {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        /* Bubble Colors */
+        .me .bubble {
+            background: var(--bubble-me);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .them .bubble {
+            background: var(--bubble-them);
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Input Area */
+        #input-area {
+            padding: 15px;
+            background: var(--chat-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+
+        #message-input {
+            flex: 1;
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            border-radius: 25px;
+            padding: 12px 20px;
+            color: white;
+            outline: none;
+        }
+
+        #message-input:focus {
+            border-color: var(--primary);
+        }
+
+        #send-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+        }
+
+        #send-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-card { padding: 1.5rem; }
+            .message { max-width: 85%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <section id="login-screen">
+        <div class="login-card">
+            <h1>AnonChat</h1>
+            <p>Masuk ke room anonim tanpa registrasi.</p>
+            
+            <div class="form-group">
+                <label for="username">Nama Samaran (Opsional)</label>
+                <input type="text" id="username" placeholder="Tamu #8291" maxlength="15">
+            </div>
+
+            <div class="form-group">
+                <label for="room-id">Kode Room</label>
+                <div class="input-row">
+                    <input type="text" id="room-id" placeholder="Contoh: XJ92" maxlength="8" style="text-transform: uppercase;">
+                    <button class="btn-small" id="random-room-btn" title="Acak Room">🎲</button>
+                </div>
+            </div>
+
+            <button class="btn-primary" id="join-btn">MASUK ROOM</button>
+            <p style="margin-top: 15px; font-size: 0.75rem; color: #64748b;">
+                ⚠️ Chat ini bekerja antar Tab/Jendela di browser yang sama (BroadcastChannel).
+            </p>
+        </div>
+    </section>
+
+    <!-- CHAT SCREEN -->
+    <section id="chat-screen">
+        <header>
+            <div class="room-info">
+                <h2>Room <span id="display-room-id">---</span></h2>
+            </div>
+            <button class="btn-leave" id="leave-btn">KELUAR</button>
+        </header>
+
+        <div id="messages-container">
+            <!-- Pesan akan muncul di sini -->
+            <div class="message system">
+                Selamat datang di room ini. Privasi terjaga.
+            </div>
+        </div>
+
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="Ketik pesan..." autocomplete="off">
+            <button id="send-btn">➤</button>
+        </div>
+    </section>
+
+    <script>
+        /**
+         * APLIKASI CHAT ANONIM (BROADCAST CHANNEL)
+         * 
+         * Menggunakan API BroadcastChannel untuk menghubungkan tab browser yang sama.
+         * Ini mensimulasikan serverless realtime chat untuk demo standalone.
+         */
+
+        // State
+        let currentUser = '';
+        let currentRoom = '';
+        let channel = null;
+
+        // Elements
+        const loginScreen = document.getElementById('login-screen');
+        const chatScreen = document.getElementById('chat-screen');
+        const usernameInput = document.getElementById('username');
+        const roomIdInput = document.getElementById('room-id');
+        const messagesContainer = document.getElementById('messages-container');
+        const messageInput = document.getElementById('message-input');
+        const displayRoomId = document.getElementById('display-room-id');
+
+        // --- Helper Functions ---
+
+        function generateRandomId(length = 5) {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I, 1, O, 0 to avoid confusion
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function getTimestamp() {
+            const now = new Date();
+            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // --- Core Logic ---
+
+        function joinRoom() {
+            const room = roomIdInput.value.trim().toUpperCase();
+            const user = usernameInput.value.trim();
+
+            if (!room) {
+                alert("Harap masukkan kode room.");
+                return;
+            }
+
+            // Set Defaults
+            currentUser = user || `Tamu#${Math.floor(Math.random() * 9000) + 1000}`;
+            currentRoom = room;
+
+            // UI Transition
+            loginScreen.style.opacity = '0';
+            setTimeout(() => {
+                loginScreen.style.display = 'none';
+                chatScreen.style.display = 'flex';
+                displayRoomId.textContent = currentRoom;
+                messageInput.focus();
+            }, 300);
+
+            // Initialize Broadcast Channel (The "Network")
+            // Nama channel unik per room agar tidak tercampur
+            channel = new BroadcastChannel('anonchat_room_' + currentRoom);
+
+            // Listen for incoming messages
+            channel.onmessage = (event) => {
+                const data = event.data;
+                if (data.type === 'message') {
+                    renderMessage(data.text, data.user, data.time, false);
+                    playSound('incoming');
+                } else if (data.type === 'join') {
+                    renderSystemMessage(`${data.user} telah bergabung.`);
+                } else if (data.type === 'leave') {
+                    renderSystemMessage(`${data.user} meninggalkan room.`);
+                }
+            };
+
+            // Notify others that I joined
+            broadcast({ type: 'join', user: currentUser });
+            
+            renderSystemMessage(`Anda masuk sebagai ${currentUser}`);
+        }
+
+        function leaveRoom() {
+            if (channel) {
+                broadcast({ type: 'leave', user: currentUser });
+                channel.close();
+            }
+            
+            // Reset UI
+            chatScreen.style.display = 'none';
+            loginScreen.style.display = 'flex';
+            loginScreen.style.opacity = '1';
+            
+            // Clear inputs
+            messagesContainer.innerHTML = '<div class="message system">Selamat datang di room ini. Privasi terjaga.</div>';
+            messageInput.value = '';
+        }
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            const time = getTimestamp();
+
+            // 1. Render locally (Me)
+            renderMessage(text, currentUser, time, true);
+
+            // 2. Broadcast to others
+            broadcast({
+                type: 'message',
+                user: currentUser,
+                text: text,
+                time: time
+            });
+
+            messageInput.value = '';
+            messageInput.focus();
+        }
+
+        function broadcast(data) {
+            if (channel) {
+                channel.postMessage(data);
+            }
+        }
+
+        function renderMessage(text, user, time, isMe) {
+            const div = document.createElement('div');
+            div.className = `message ${isMe ? 'me' : 'them'}`;
+            
+            // Sanitize HTML mendasar untuk mencegah XSS sederhana
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            div.innerHTML = `
+                <div class="bubble">${safeText}</div>
+                <div class="meta">
+                    <span>${user}</span>
+                    <span>•</span>
+                    <span>${time}</span>
+                </div>
+            `;
+
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function renderSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message system';
+            div.textContent = text;
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        // Simple Beep Sound using Web Audio API
+        function playSound(type) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            if (type === 'incoming') {
+                // Soft high pitch
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            } else {
+                // Send sound
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            }
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('join-btn').addEventListener('click', joinRoom);
+        document.getElementById('leave-btn').addEventListener('click', leaveRoom);
+        
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        
+        document.getElementById('message-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        document.getElementById('random-room-btn').addEventListener('click', () => {
+            roomIdInput.value = generateRandomId();
+            roomIdInput.focus();
+        });
+
+        // Enter key on login form
+        [usernameInput, roomIdInput].forEach(input => {
+            input.addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') joinRoom();
+            });
+        });
+
+        // Generate initial random room
+        roomIdInput.value = generateRandomId();
+
+    </script>
+</body>
+</html>
