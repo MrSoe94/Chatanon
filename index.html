@@ -98,8 +98,27 @@
             background: var(--accent); color: white; border: none; border-radius: 4px;
             padding: 4px 8px; font-size: 0.7rem; cursor: pointer;
             transition: background 0.2s;
+            position: relative;
         }
         .private-chat-btn:hover { background: #008f6f; }
+        
+        .user-notification-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #ff3b30;
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            font-size: 0.6rem;
+            font-weight: bold;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: pulse 2s infinite;
+        }
 
         .main-content {
             flex: 1;
@@ -417,6 +436,67 @@
             padding: 8px 15px; border-radius: 4px; cursor: pointer;
             font-weight: bold;
         }
+        .private-chat-send:hover { background: #008f6f; }
+
+        /* Notification Badge */
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff3b30;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* Private chat messages styling */
+        .private-chat-messages .msg-row {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .private-chat-messages .msg-row.me {
+            flex-direction: row-reverse;
+        }
+        .private-chat-messages .msg-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 0.8rem; color: white;
+            flex-shrink: 0;
+        }
+        .private-chat-messages .msg-content {
+            flex: 1; max-width: 70%;
+        }
+        .private-chat-messages .msg-name {
+            font-weight: 600; margin-bottom: 4px; font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .private-chat-messages .msg-bubble {
+            background: var(--input-bg); padding: 8px 12px;
+            border-radius: 8px; word-wrap: break-word;
+            position: relative;
+        }
+        .private-chat-messages .msg-row.me .msg-bubble {
+            background: var(--accent);
+        }
+        .private-chat-messages .msg-time {
+            font-size: 0.7rem; color: var(--text-muted);
+            margin-top: 4px; display: block;
+        }
         .private-msg-bubble {
             background: var(--bubble-them); padding: 8px 12px;
             border-radius: 8px; margin-bottom: 8px; max-width: 80%;
@@ -691,7 +771,10 @@
     <div id="private-chat-modal">
         <div class="private-chat-container">
             <div class="private-chat-header">
-                <span id="private-chat-username">Private Chat</span>
+                <div>
+                    <span id="private-chat-username">Private Chat</span>
+                    <span id="private-chat-target" style="font-size: 0.9rem; opacity: 0.8; margin-left: 8px;"></span>
+                </div>
                 <button onclick="closePrivateChat()" style="background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;">×</button>
             </div>
             <div class="private-chat-messages" id="private-chat-messages"></div>
@@ -818,6 +901,7 @@
         // Private Chat DOM
         const privateChatModal = document.getElementById('private-chat-modal');
         const privateChatUsername = document.getElementById('private-chat-username');
+        const privateChatTarget = document.getElementById('private-chat-target');
         const privateChatMessages = document.getElementById('private-chat-messages');
         const privateChatInput = document.getElementById('private-chat-input');
 
@@ -830,14 +914,14 @@
         const replyPreviewText = document.getElementById('reply-preview-text');
         const cancelReplyBtn = document.getElementById('cancel-reply');
 
+        // Notification Variables
+        let notificationCount = 0;
+        let notificationBadge = null;
+        let userNotifications = {}; // Store notification count per user
+
         // Private Chat Variables
         let currentPrivateChatUser = '';
         let privateChatHistory = {};
-
-        // Mention Suggestion Variables
-        let mentionSuggestions = [];
-        let selectedMentionIndex = -1;
-        let isMentionMode = false;
         let mentionStartPos = -1;
 
         // Reply Variables
@@ -1087,6 +1171,10 @@
                             privateChatHistory[payload.from] = [];
                         }
                         privateChatHistory[payload.from].push(payload);
+                        // Show user-specific notification if modal is not open or not chatting with this user
+                        if (privateChatModal.style.display !== 'flex' || currentPrivateChatUser !== payload.from) {
+                            showUserNotification(payload.from);
+                        }
                     }
                 }
                 else if (payload.type === 'sticker') {
@@ -1341,8 +1429,60 @@
                     <span class="msg-time">${time}</span>
                 </div>
             `;
-            messagesArea.appendChild(row);
-            messagesArea.scrollTop = messagesArea.scrollHeight;
+            privateChatMessages.appendChild(row);
+            privateChatMessages.scrollTop = privateChatMessages.scrollHeight;
+        }
+
+        function showNotification() {
+            notificationCount++;
+            if (!notificationBadge) {
+                notificationBadge = document.createElement('div');
+                notificationBadge.className = 'notification-badge';
+                notificationBadge.textContent = notificationCount;
+                document.querySelector('.header-right').appendChild(notificationBadge);
+            } else {
+                notificationBadge.textContent = notificationCount;
+            }
+            notificationBadge.style.display = 'flex';
+        }
+
+        function showUserNotification(username) {
+            // Initialize notification count for this user if not exists
+            if (!userNotifications[username]) {
+                userNotifications[username] = 0;
+            }
+            userNotifications[username]++;
+            
+            // Find the user's private chat button
+            const userItem = document.getElementById('user-item-' + username);
+            if (userItem) {
+                let badge = userItem.querySelector('.user-notification-badge');
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'user-notification-badge';
+                    userItem.querySelector('.private-chat-btn').appendChild(badge);
+                }
+                badge.textContent = userNotifications[username];
+                badge.style.display = 'flex';
+            }
+        }
+
+        function clearNotifications() {
+            notificationCount = 0;
+            if (notificationBadge) {
+                notificationBadge.style.display = 'none';
+            }
+        }
+
+        function clearUserNotifications(username) {
+            userNotifications[username] = 0;
+            const userItem = document.getElementById('user-item-' + username);
+            if (userItem) {
+                const badge = userItem.querySelector('.user-notification-badge');
+                if (badge) {
+                    badge.style.display = 'none';
+                }
+            }
         }
 
         function sendPrivateMessage() {
@@ -1371,9 +1511,13 @@
 
         function openPrivateChatModal(username) {
             currentPrivateChatUser = username;
-            privateChatUsername.textContent = username;
+            privateChatUsername.textContent = 'Private Chat';
+            privateChatTarget.textContent = `dengan ${username}`;
             privateChatModal.style.display = 'flex';
             privateChatInput.focus();
+            
+            // Clear notifications for this user
+            clearUserNotifications(username);
             
             // Load chat history
             if (privateChatHistory[username]) {
@@ -1388,9 +1532,11 @@
         }
 
         function closePrivateChat() {
+            console.log('closePrivateChat called');
             privateChatModal.style.display = 'none';
             currentPrivateChatUser = '';
             privateChatMessages.innerHTML = '';
+            console.log('Modal closed, display now:', privateChatModal.style.display);
         }
 
         function startReply(message) {
@@ -1725,18 +1871,25 @@
         messageInput.addEventListener('input', handleInput);
         messageInput.addEventListener('keydown', handleKeyDown);
         
-        // Close suggestions when clicking outside
+        // Close suggestions and private chat modal when clicking outside
         document.addEventListener('click', (e) => {
+            // Handle mention suggestions
             if (!mentionSuggestionsEl.contains(e.target) && e.target !== messageInput) {
                 hideMentionSuggestions();
             }
-        });
-
-        // Close private chat modal when clicking outside
-        document.addEventListener('click', (e) => {
+            
+            // Handle private chat modal
+            console.log('Modal check:', {
+                display: privateChatModal.style.display,
+                containsModal: privateChatModal.contains(e.target),
+                isButton: e.target.closest('.private-chat-btn'),
+                target: e.target
+            });
+            
             if (privateChatModal.style.display === 'flex' && 
                 !privateChatModal.contains(e.target) && 
                 !e.target.closest('.private-chat-btn')) {
+                console.log('Closing modal...');
                 closePrivateChat();
             }
         });
