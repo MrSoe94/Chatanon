@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Realtime Room Chat</title>
-    <!-- Paho MQTT Library -->
+    <title>Realtime Chat with Timer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
@@ -16,10 +15,9 @@
             --text-main: #e4e6eb;
             --text-muted: #b0b3b8;
             --accent: #2d88ff;
-            --exit-red: #dc3545;
+            --danger: #dc3545;
             --online-green: #31a24c;
             --border: #3e4042;
-            --status-red: #e03e3e;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -36,7 +34,7 @@
         /* --- LOGIN --- */
         #login-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 1000;
+            background: rgba(0,0,0,0.9); z-index: 2000;
             display: flex; justify-content: center; align-items: center;
         }
         .login-box {
@@ -61,6 +59,7 @@
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
+            z-index: 10;
         }
         .sidebar-header {
             padding: 15px;
@@ -71,16 +70,10 @@
             font-size: 0.8rem;
             display: flex; justify-content: space-between;
         }
-        .user-count { background: #333; padding: 2px 6px; border-radius: 10px; color: white; }
-        
         .user-list { flex: 1; overflow-y: auto; }
         .user-item {
-            padding: 10px 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            padding: 10px 15px; display: flex; align-items: center; gap: 10px;
             border-bottom: 1px solid rgba(255,255,255,0.05);
-            transition: background 0.2s;
         }
         .user-avatar {
             width: 36px; height: 36px; border-radius: 50%;
@@ -91,60 +84,86 @@
         .user-info { flex:1; }
         .user-name { font-weight: 600; font-size: 0.95rem; }
         .user-status-text { font-size: 0.75rem; color: var(--online-green); }
-        
-        .status-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--online-green);
-        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--online-green); }
 
         .main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
             background-color: var(--bg-dark);
+            position: relative;
         }
 
-        /* HEADER */
+        /* --- HEADER --- */
         .chat-header {
-            height: 50px;
+            height: 60px; /* Tambahan tinggi untuk timer control */
             background-color: var(--header-bg);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 0 20px;
+            z-index: 10;
         }
-        .room-title { font-weight: bold; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;}
-        .room-id { font-weight: normal; color: var(--text-muted); font-size: 0.9rem; font-family: monospace;}
+        .header-left { display: flex; flex-direction: column; justify-content: center; }
+        .room-title-row { display: flex; align-items: center; gap: 8px; }
+        .room-title { font-weight: bold; font-size: 1.1rem; }
+        .room-id { font-weight: normal; color: var(--text-muted); font-size: 0.9rem; font-family: monospace; }
+        
+        /* TIMER CONTROLS */
+        .timer-controls {
+            margin-top: 4px;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .timer-input {
+            width: 50px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .btn-timer {
+            background: #444; color: white; border: 1px solid #555;
+            padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
+        }
+        .btn-timer:hover { background: #555; }
+        .btn-timer.active { background: var(--danger); border-color: var(--danger); }
+
+        .header-right { display: flex; align-items: center; gap: 10px; }
         
         .connection-badge {
-            font-size: 0.75rem;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background: #333;
-            color: #aaa;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-right: 10px;
+            font-size: 0.75rem; padding: 4px 8px; border-radius: 4px;
+            background: #333; color: #aaa; display: flex; align-items: center; gap: 6px;
         }
         .connection-badge.connected .status-dot { background: var(--online-green); box-shadow: 0 0 5px var(--online-green); }
-        .connection-badge.disconnected .status-dot { background: var(--status-red); }
-        .connection-badge span { font-size: 0.7rem; }
 
         .btn-exit {
-            background-color: var(--exit-red);
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            cursor: pointer;
-            text-transform: uppercase;
+            background-color: var(--danger);
+            color: white; border: none; padding: 6px 16px; border-radius: 4px;
+            font-size: 0.85rem; font-weight: bold; cursor: pointer; text-transform: uppercase;
         }
 
-        /* CHAT AREA */
+        /* --- WATERMARK TIMER --- */
+        #timer-watermark {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 8rem;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.05); /* Transparan */
+            pointer-events: none; /* Klik tembus ke chat */
+            z-index: 1;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            transition: color 0.3s;
+        }
+        #timer-watermark.urgent { color: rgba(220, 53, 69, 0.15); } /* Merah jika mau habis */
+
+        /* --- CHAT AREA --- */
         #messages-area {
             flex: 1;
             padding: 20px;
@@ -152,6 +171,8 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
+            z-index: 5; /* Di atas watermark */
+            position: relative;
         }
         
         .msg-row { display: flex; gap: 10px; animation: popIn 0.2s ease; }
@@ -176,16 +197,13 @@
         }
         .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-align: right; display: block;}
 
-        /* Style untuk pesan sendiri (Kanan) */
+        /* Style pesan sendiri */
         .msg-row.me { flex-direction: row-reverse; }
         .msg-row.me .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
         .msg-row.me .msg-name { display: none; }
         .msg-row.me .msg-bubble {
-            background-color: var(--accent);
-            color: white;
-            border: none;
-            border-top-right-radius: 0;
-            border-top-left-radius: 12px;
+            background-color: var(--accent); color: white; border: none;
+            border-top-right-radius: 0; border-top-left-radius: 12px;
         }
 
         /* INPUT */
@@ -193,43 +211,49 @@
             padding: 15px 20px;
             background-color: var(--header-bg);
             border-top: 1px solid var(--border);
-            display: flex;
-            gap: 10px;
-            align-items: center;
+            display: flex; gap: 10px; align-items: center;
+            z-index: 10;
         }
         .input-wrapper { flex: 1; position: relative; }
         .chat-input {
-            width: 100%;
-            padding: 12px 15px;
-            background-color: var(--input-bg);
-            border: 1px solid transparent;
-            border-radius: 20px;
-            color: white;
-            outline: none;
+            width: 100%; padding: 12px 15px; background-color: var(--input-bg);
+            border: 1px solid transparent; border-radius: 20px; color: white; outline: none;
         }
         .chat-input:focus { border-color: var(--text-muted); }
         .chat-input:disabled { opacity: 0.5; cursor: not-allowed; }
-        
         .btn-send {
-            background-color: var(--accent);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: 600;
+            background-color: var(--accent); color: white; border: none;
+            padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: 600;
         }
         .btn-send:disabled { background-color: var(--text-muted); cursor: not-allowed; }
 
+        /* --- EXPIRED OVERLAY --- */
+        #expired-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 3000;
+            flex-direction: column; justify-content: center; align-items: center;
+            text-align: center;
+        }
+        #expired-overlay h1 { font-size: 3rem; color: var(--danger); margin-bottom: 20px; }
+        #expired-overlay p { color: white; font-size: 1.2rem; }
+
         @media (max-width: 600px) {
             .sidebar { display: none; }
-            .chat-header { padding: 0 10px; }
+            .chat-header { height: auto; padding: 10px; flex-wrap: wrap; }
+            #timer-watermark { font-size: 4rem; }
         }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
     </style>
 </head>
 <body>
+
+    <!-- EXPIRED SCREEN -->
+    <div id="expired-overlay">
+        <h1>⏰ WAKTU HABIS</h1>
+        <p>Sesi telah berakhir. Anda akan keluar otomatis...</p>
+    </div>
 
     <!-- LOGIN -->
     <div id="login-overlay">
@@ -245,23 +269,33 @@
     <aside class="sidebar">
         <div class="sidebar-header">
             <span>Users</span>
-            <span class="user-count" id="user-count">0</span>
+            <span id="user-count">0</span>
         </div>
         <div class="user-list" id="user-list"></div>
     </aside>
 
     <!-- MAIN CHAT -->
     <main class="main-content">
+        <!-- TIMER WATERMARK -->
+        <div id="timer-watermark">00:00</div>
+
         <header class="chat-header">
-            <div>
-                <span class="room-title">Room </span>
-                <span class="room-id" id="display-room-id">---</span>
+            <div class="header-left">
+                <div class="room-title-row">
+                    <span class="room-title">Room </span>
+                    <span class="room-id" id="display-room-id">---</span>
+                </div>
+                <!-- TIMER CONTROL -->
+                <div class="timer-controls">
+                    <input type="number" id="timer-minutes" class="timer-input" placeholder="Menit" min="1" max="60">
+                    <button class="btn-timer" id="btn-set-timer" onclick="setTimer()">⏱ Set Timer</button>
+                </div>
             </div>
             
-            <div style="display:flex; align-items:center;">
+            <div class="header-right">
                 <div id="connection-badge" class="connection-badge">
                     <div class="status-dot"></div>
-                    <span id="status-text">Offline</span>
+                    <span>Offline</span>
                 </div>
                 <button class="btn-exit" onclick="leaveApp()">EXIT</button>
             </div>
@@ -269,7 +303,7 @@
 
         <div id="messages-area">
             <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-                Selamat datang. Privasi terjaga.
+                Selamat datang. Gunakan timer untuk batasi waktu diskusi.
             </div>
         </div>
 
@@ -290,9 +324,13 @@
         let currentUser = "";
         let currentRoom = "";
         
-        // Menyimpan daftar user yang aktif
+        // User Management
         let activeUsers = {}; 
         let userColors = {};
+
+        // Timer Variables
+        let timerInterval = null;
+        let timerEndTime = null;
 
         // DOM
         const displayRoomId = document.getElementById('display-room-id');
@@ -301,8 +339,13 @@
         const userListEl = document.getElementById('user-list');
         const sendBtn = document.getElementById('send-btn');
         const statusBadge = document.getElementById('connection-badge');
-        const statusText = document.getElementById('status-text');
         const userCountEl = document.getElementById('user-count');
+        
+        // Timer DOM
+        const timerWatermark = document.getElementById('timer-watermark');
+        const timerInput = document.getElementById('timer-minutes');
+        const btnSetTimer = document.getElementById('btn-set-timer');
+        const expiredOverlay = document.getElementById('expired-overlay');
 
         // --- CORE FUNCTIONS ---
 
@@ -318,8 +361,6 @@
 
             document.getElementById('login-overlay').style.display = 'none';
             displayRoomId.textContent = currentRoom;
-            
-            // Add self to list initially
             updateActiveUser(currentUser, true);
 
             startConnection();
@@ -327,55 +368,32 @@
 
         function startConnection() {
             updateStatus('connecting');
-            
-            // Client ID Unik
-            const clientId = "chat_rtc_" + Math.random().toString(16).substr(2, 8);
-            
+            const clientId = "chat_timer_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
             client.onMessageArrived = onMessageArrived;
 
             const topic = "anonchat/room/" + currentRoom;
-
-            // --- FITUR CANGGIH: LAST WILL AND TESTAMENT (LWT) ---
-            // Jika koneksi putus tiba-tiba, server otomatis kirim pesan 'leave'
-            const willMessage = new Paho.MQTT.Message(JSON.stringify({
-                type: 'leave',
-                user: currentUser
-            }));
+            const willMessage = new Paho.MQTT.Message(JSON.stringify({ type: 'leave', user: currentUser }));
             willMessage.destinationName = topic;
-            willMessage.qos = 0;
-            willMessage.retained = false;
-            // -----------------------------------------------------
 
             const options = {
-                useSSL: true, 
-                timeout: 10,
-                keepAliveInterval: 30,
-                onSuccess: onConnect,
-                onFailure: onFailure,
-                willMessage: willMessage // Pasang LWT di sini
+                useSSL: true, timeout: 10, keepAliveInterval: 30,
+                onSuccess: onConnect, onFailure: onFailure, willMessage: willMessage
             };
 
-            try {
-                client.connect(options);
-            } catch (e) {
-                console.error(e);
-                onFailure({errorMessage: "Error Init"});
-            }
+            try { client.connect(options); } catch(e) { onFailure(); }
         }
 
         function onConnect() {
             isConnected = true;
             updateStatus('connected');
-            
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
 
-            // 1. Kirim pesan "Saya Masuk" (Join)
-            const joinMsg = { type: 'join', user: currentUser, time: new Date().toLocaleTimeString() };
-            publishMessage(joinMsg);
+            // Send Join
+            publishMessage({ type: 'join', user: currentUser });
             
             renderSystemMessage("Terhubung ke Server.");
             messageInput.disabled = false;
@@ -388,17 +406,15 @@
             updateStatus('disconnected');
             messageInput.disabled = true;
             sendBtn.disabled = true;
-            setTimeout(startConnection, 3000); // Auto reconnect
+            setTimeout(startConnection, 3000);
         }
 
         function onConnectionLost(responseObject) {
             if (responseObject.errorCode !== 0) {
-                console.log("Koneksi putus");
                 isConnected = false;
                 updateStatus('disconnected');
                 messageInput.disabled = true;
                 sendBtn.disabled = true;
-                renderSystemMessage("⚠️ Terputus. Menghubungkan ulang...");
                 setTimeout(startConnection, 3000);
             }
         }
@@ -411,72 +427,139 @@
             try { client.send(message); } catch(e){}
         }
 
-        // --- PESAN MASUK (LOGIKA PALING PENTING) ---
+        // --- MESSAGE HANDLING ---
+
         function onMessageArrived(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
+                if (payload.user === currentUser) return;
 
-                // 1. ABSEN PESAN DARI DIRI SENDIRI (Anti Echo)
-                // Ini yang membuat chat Anda tidak muncul dua kali atau di sisi yang salah
-                if (payload.user === currentUser) {
-                    return; 
+                // 1. HANDLE TIMER MESSAGES
+                if (payload.type === 'timer_start') {
+                    syncTimer(payload.endTime);
+                } else if (payload.type === 'timer_end') {
+                    forceKickout();
                 }
 
-                // 2. Handle User Join
-                if (payload.type === 'join') {
-                    // Tambahkan user baru ke list
+                // 2. HANDLE PRESENCE MESSAGES
+                else if (payload.type === 'join') {
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
                     
-                    // **HANDSHAKE**: Balas pesan join untuk memberitahu "Saya juga online"
-                    // Jadi user yang baru masuk tahu siapa saja yang sudah ada di dalam
+                    // Handshake & Sync Timer if running
                     const presenceMsg = { type: 'presence', user: currentUser };
                     publishMessage(presenceMsg);
+                    
+                    if(timerEndTime) {
+                        publishMessage({ type: 'timer_start', endTime: timerEndTime });
+                    }
                 }
-
-                // 3. Handle User Presence (Balasan dari user lama)
                 else if (payload.type === 'presence') {
                     updateActiveUser(payload.user, true);
+                    // If I just joined and someone sends back presence, ask for timer if they are running one?
+                    // Simplified: Presence handles user list.
                 }
-
-                // 4. Handle User Leave
                 else if (payload.type === 'leave') {
                     updateActiveUser(payload.user, false);
                     renderSystemMessage(`${payload.user} keluar.`);
                 }
-
-                // 5. Handle Chat Biasa
-                else {
+                else if (payload.type === 'chat') {
                     renderChatMessage(payload.user, payload.text, payload.time, false);
                 }
 
             } catch(e) { console.error(e); }
         }
 
-        // --- MANAJEMEN USER LIST ---
+        // --- TIMER LOGIC ---
+
+        function setTimer() {
+            const mins = parseInt(timerInput.value);
+            if(!mins || mins <= 0) { alert("Masukkan menit yang valid"); return; }
+
+            const durationMs = mins * 60 * 1000;
+            const endTime = Date.now() + durationMs;
+
+            // Broadcast start
+            publishMessage({ type: 'timer_start', endTime: endTime });
+            
+            // Start locally
+            syncTimer(endTime);
+        }
+
+        function syncTimer(endTime) {
+            clearInterval(timerInterval);
+            timerEndTime = endTime;
+            
+            // UI Update
+            timerWatermark.style.display = 'block';
+            btnSetTimer.textContent = "⏹ Stop/Reset";
+            btnSetTimer.classList.add('active');
+
+            timerInterval = setInterval(() => {
+                const now = Date.now();
+                const diff = endTime - now;
+
+                if (diff <= 0) {
+                    clearInterval(timerInterval);
+                    timerWatermark.textContent = "00:00";
+                    // Broadcast Time's Up
+                    publishMessage({ type: 'timer_end' });
+                    forceKickout();
+                } else {
+                    updateTimerUI(diff);
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            const timeString = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            
+            timerWatermark.textContent = timeString;
+            
+            // Visual warning
+            if(totalSeconds < 30) {
+                timerWatermark.classList.add('urgent');
+            } else {
+                timerWatermark.classList.remove('urgent');
+            }
+        }
+
+        function forceKickout() {
+            expiredOverlay.style.display = 'flex';
+            clearInterval(timerInterval);
+            // Disconnect MQTT
+            if(client) try { client.disconnect(); } catch(e){}
+            
+            // Reload after delay
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        }
+
+        // --- UI HELPERS ---
+
         function updateActiveUser(username, isOnline) {
             if (isOnline) {
-                // Jika belum ada di list, tambahkan
                 if (!activeUsers[username]) {
                     activeUsers[username] = true;
                     renderUserToList(username);
-                    updateUserCount();
+                    userCountEl.textContent = Object.keys(activeUsers).length;
                 }
             } else {
-                // Jika offline, hapus dari list
                 if (activeUsers[username]) {
                     delete activeUsers[username];
                     const el = document.getElementById('user-item-' + username);
                     if (el) el.remove();
-                    updateUserCount();
+                    userCountEl.textContent = Object.keys(activeUsers).length;
                 }
             }
         }
 
         function renderUserToList(username) {
-            // Cek duplikasi DOM
             if (document.getElementById('user-item-' + username)) return;
-
             const color = userColors[username] || getRandomColor();
             userColors[username] = color;
             const initial = username.substring(0,2).toUpperCase();
@@ -495,16 +578,8 @@
             userListEl.appendChild(div);
         }
 
-        function updateUserCount() {
-            userCountEl.textContent = Object.keys(activeUsers).length;
-        }
-
         function leaveApp() {
-            // Kirim pesan leave manual
-            const leaveMsg = { type: 'leave', user: currentUser };
-            publishMessage(leaveMsg);
-            
-            // Tunggu sedikit agar pesan terkirim, lalu refresh
+            publishMessage({ type: 'leave', user: currentUser });
             setTimeout(() => {
                 if (client) client.disconnect();
                 location.reload();
@@ -514,30 +589,19 @@
         function sendMessage() {
             const text = messageInput.value.trim();
             if(!text || !isConnected) return;
-
             const msg = {
-                type: 'chat',
-                user: currentUser,
-                text: text,
+                type: 'chat', user: currentUser, text: text,
                 time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
             };
-
             publishMessage(msg);
-            // Render Local (Kanan)
             renderChatMessage(currentUser, text, msg.time, true);
             messageInput.value = "";
         }
 
-        // --- UI HELPERS ---
         function updateStatus(state) {
             statusBadge.className = 'connection-badge';
-            if (state === 'connected') {
-                statusBadge.classList.add('connected');
-                statusText.textContent = "Online";
-            } else {
-                statusBadge.classList.add('disconnected');
-                statusText.textContent = "Offline";
-            }
+            if (state === 'connected') statusBadge.classList.add('connected');
+            statusBadge.querySelector('span').textContent = state === 'connected' ? "Online" : "Offline";
         }
 
         function getRandomColor() {
@@ -568,10 +632,8 @@
 
         function renderSystemMessage(text) {
             const div = document.createElement('div');
-            div.style.textAlign = 'center';
-            div.style.fontSize = '0.75rem';
-            div.style.color = '#777';
-            div.style.margin = '10px 0';
+            div.style.textAlign = 'center'; div.style.fontSize = '0.75rem';
+            div.style.color = '#777'; div.style.margin = '10px 0';
             div.textContent = text;
             messagesArea.appendChild(div);
             messagesArea.scrollTop = messagesArea.scrollHeight;
