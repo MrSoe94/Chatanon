@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Room Chat UI - Stable Connection</title>
+    <title>Realtime Room Chat</title>
     <!-- Paho MQTT Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
@@ -33,27 +33,27 @@
             font-size: 14px;
         }
 
-        /* --- LOGIN OVERLAY --- */
+        /* --- LOGIN --- */
         #login-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 1000;
+            background: rgba(0,0,0,0.9); z-index: 1000;
             display: flex; justify-content: center; align-items: center;
-            backdrop-filter: blur(5px);
         }
         .login-box {
             background: var(--sidebar-bg); padding: 30px; border-radius: 8px;
-            width: 300px; text-align: center; border: 1px solid var(--border);
+            width: 320px; text-align: center; border: 1px solid var(--border);
         }
+        .login-box h2 { color:white; margin-bottom:15px; }
         .login-box input {
-            width: 100%; padding: 10px; margin: 10px 0; background: var(--input-bg);
+            width: 100%; padding: 12px; margin: 8px 0; background: var(--input-bg);
             border: 1px solid var(--border); color: white; border-radius: 4px;
         }
         .btn-enter {
-            width: 100%; padding: 10px; background: var(--accent); color: white;
-            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+            width: 100%; padding: 12px; background: var(--accent); color: white;
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top:10px;
         }
 
-        /* --- LAYOUT UTAMA --- */
+        /* --- LAYOUT --- */
         .sidebar {
             width: 250px;
             background-color: var(--sidebar-bg);
@@ -69,37 +69,42 @@
             color: var(--text-muted);
             text-transform: uppercase;
             font-size: 0.8rem;
+            display: flex; justify-content: space-between;
         }
+        .user-count { background: #333; padding: 2px 6px; border-radius: 10px; color: white; }
+        
         .user-list { flex: 1; overflow-y: auto; }
         .user-item {
             padding: 10px 15px;
             display: flex;
             align-items: center;
             gap: 10px;
-            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
             transition: background 0.2s;
         }
-        .user-item:hover { background-color: rgba(255,255,255,0.05); }
         .user-avatar {
-            width: 32px; height: 32px; border-radius: 50%;
+            width: 36px; height: 36px; border-radius: 50%;
             background: var(--input-bg); display: flex;
-            align-items: center; justify-content: center; font-size: 0.8rem;
+            align-items: center; justify-content: center; font-size: 0.9rem;
+            font-weight: bold; color: white;
         }
-        .user-status {
+        .user-info { flex:1; }
+        .user-name { font-weight: 600; font-size: 0.95rem; }
+        .user-status-text { font-size: 0.75rem; color: var(--online-green); }
+        
+        .status-dot {
             width: 8px; height: 8px; border-radius: 50%;
-            background: var(--text-muted); margin-left: auto;
+            background: var(--online-green);
         }
-        .user-status.online { background: var(--online-green); }
 
         .main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
             background-color: var(--bg-dark);
-            position: relative;
         }
 
-        /* HEADER & STATUS */
+        /* HEADER */
         .chat-header {
             height: 50px;
             background-color: var(--header-bg);
@@ -110,9 +115,8 @@
             padding: 0 20px;
         }
         .room-title { font-weight: bold; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;}
-        .room-id { font-weight: normal; color: var(--text-muted); font-size: 0.9rem; }
+        .room-id { font-weight: normal; color: var(--text-muted); font-size: 0.9rem; font-family: monospace;}
         
-        /* Status Indicator */
         .connection-badge {
             font-size: 0.75rem;
             padding: 4px 8px;
@@ -121,19 +125,12 @@
             color: #aaa;
             display: flex;
             align-items: center;
-            gap: 5px;
-            cursor: pointer;
+            gap: 6px;
+            margin-right: 10px;
         }
-        .status-dot {
-            width: 8px; height: 8px; border-radius: 50%; background: #555;
-        }
-        .connection-badge.connected { background: rgba(49, 162, 76, 0.2); color: var(--online-green); border: 1px solid rgba(49, 162, 76, 0.4); }
         .connection-badge.connected .status-dot { background: var(--online-green); box-shadow: 0 0 5px var(--online-green); }
-        
-        .connection-badge.disconnected { background: rgba(224, 62, 62, 0.2); color: var(--status-red); border: 1px solid rgba(224, 62, 62, 0.4); animation: pulse 1.5s infinite; }
         .connection-badge.disconnected .status-dot { background: var(--status-red); }
-
-        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        .connection-badge span { font-size: 0.7rem; }
 
         .btn-exit {
             background-color: var(--exit-red);
@@ -145,9 +142,7 @@
             font-weight: bold;
             cursor: pointer;
             text-transform: uppercase;
-            margin-left: 10px;
         }
-        .btn-exit:hover { background-color: #c82333; }
 
         /* CHAT AREA */
         #messages-area {
@@ -158,6 +153,7 @@
             flex-direction: column;
             gap: 15px;
         }
+        
         .msg-row { display: flex; gap: 10px; animation: popIn 0.2s ease; }
         @keyframes popIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -168,7 +164,7 @@
             font-weight: bold; color: #fff;
         }
         .msg-content { max-width: 70%; }
-        .msg-name { font-size: 0.85rem; font-weight: bold; margin-bottom: 2px; color: var(--text-muted); }
+        .msg-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 2px; color: var(--text-muted); }
         .msg-bubble {
             background-color: var(--sidebar-bg);
             padding: 10px 14px;
@@ -180,7 +176,7 @@
         }
         .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-align: right; display: block;}
 
-        /* Style untuk pesan sendiri */
+        /* Style untuk pesan sendiri (Kanan) */
         .msg-row.me { flex-direction: row-reverse; }
         .msg-row.me .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
         .msg-row.me .msg-name { display: none; }
@@ -192,7 +188,7 @@
             border-top-left-radius: 12px;
         }
 
-        /* INPUT AREA */
+        /* INPUT */
         .chat-input-area {
             padding: 15px 20px;
             background-color: var(--header-bg);
@@ -225,14 +221,10 @@
         }
         .btn-send:disabled { background-color: var(--text-muted); cursor: not-allowed; }
 
-        /* RESPONSIVE */
         @media (max-width: 600px) {
             .sidebar { display: none; }
             .chat-header { padding: 0 10px; }
-            .room-title { font-size: 1rem; }
-            .connection-badge span { display: none; } /* Hide text on mobile, keep dot */
         }
-
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
     </style>
@@ -242,16 +234,19 @@
     <!-- LOGIN -->
     <div id="login-overlay">
         <div class="login-box">
-            <h2 style="margin-bottom: 15px; color: white;">JOIN ROOM</h2>
+            <h2>JOIN ROOM</h2>
             <input type="text" id="username" placeholder="Username..." maxlength="12">
-            <input type="text" id="roomid" placeholder="Room ID (e.g., A-111)" maxlength="10">
+            <input type="text" id="roomid" placeholder="Room ID" maxlength="10">
             <button class="btn-enter" onclick="joinApp()">MASUK</button>
         </div>
     </div>
 
-    <!-- SIDEBAR USERS -->
+    <!-- SIDEBAR -->
     <aside class="sidebar">
-        <div class="sidebar-header">Users Online</div>
+        <div class="sidebar-header">
+            <span>Users</span>
+            <span class="user-count" id="user-count">0</span>
+        </div>
         <div class="user-list" id="user-list"></div>
     </aside>
 
@@ -264,19 +259,17 @@
             </div>
             
             <div style="display:flex; align-items:center;">
-                <!-- Status Indicator (Clickable to Reconnect) -->
-                <div id="connection-badge" class="connection-badge" onclick="forceReconnect()" title="Klik untuk sambung ulang">
+                <div id="connection-badge" class="connection-badge">
                     <div class="status-dot"></div>
-                    <span id="status-text">Menghubungkan...</span>
+                    <span id="status-text">Offline</span>
                 </div>
-                
-                <button class="btn-exit" onclick="location.reload()">EXIT</button>
+                <button class="btn-exit" onclick="leaveApp()">EXIT</button>
             </div>
         </header>
 
         <div id="messages-area">
             <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-                Selamat datang di Room. Privasi terjaga.
+                Selamat datang. Privasi terjaga.
             </div>
         </div>
 
@@ -289,19 +282,16 @@
     </main>
 
     <script>
-        // --- CONFIGURATION ---
-        // Menggunakan broker publik yang stabil
-        const MQTT_HOST = "broker.emqx.io"; 
-        const MQTT_PORT = 8084; // WSS (Secure WebSocket)
+        const MQTT_HOST = "broker.emqx.io";
+        const MQTT_PORT = 8084;
         
         let client = null;
         let isConnected = false;
         let currentUser = "";
         let currentRoom = "";
-        let reconnectInterval = null;
         
-        // Set users
-        let knownUsers = new Set();
+        // Menyimpan daftar user yang aktif
+        let activeUsers = {}; 
         let userColors = {};
 
         // DOM
@@ -312,51 +302,67 @@
         const sendBtn = document.getElementById('send-btn');
         const statusBadge = document.getElementById('connection-badge');
         const statusText = document.getElementById('status-text');
+        const userCountEl = document.getElementById('user-count');
 
-        // --- FUNGSI UTAMA ---
+        // --- CORE FUNCTIONS ---
 
         function joinApp() {
             const user = document.getElementById('username').value.trim();
             const room = document.getElementById('roomid').value.trim().toUpperCase();
 
-            if(!user || !room) { alert("Isi username dan room ID!"); return; }
+            if(!user || !room) { alert("Isi semua kolom!"); return; }
+            if(user.length > 15) { alert("Username terlalu panjang"); return; }
 
             currentUser = user;
             currentRoom = room;
 
             document.getElementById('login-overlay').style.display = 'none';
             displayRoomId.textContent = currentRoom;
-
-            addUserToList(currentUser, true);
             
-            // Mulai Koneksi
+            // Add self to list initially
+            updateActiveUser(currentUser, true);
+
             startConnection();
         }
 
         function startConnection() {
             updateStatus('connecting');
             
-            // Client ID unik setiap kali connect
-            const clientId = "chat_stable_" + Math.random().toString(16).substr(2, 8);
+            // Client ID Unik
+            const clientId = "chat_rtc_" + Math.random().toString(16).substr(2, 8);
             
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
             client.onMessageArrived = onMessageArrived;
 
+            const topic = "anonchat/room/" + currentRoom;
+
+            // --- FITUR CANGGIH: LAST WILL AND TESTAMENT (LWT) ---
+            // Jika koneksi putus tiba-tiba, server otomatis kirim pesan 'leave'
+            const willMessage = new Paho.MQTT.Message(JSON.stringify({
+                type: 'leave',
+                user: currentUser
+            }));
+            willMessage.destinationName = topic;
+            willMessage.qos = 0;
+            willMessage.retained = false;
+            // -----------------------------------------------------
+
             const options = {
                 useSSL: true, 
                 timeout: 10,
-                keepAliveInterval: 30, // Jaga koneksi tetap hidup setiap 30 detik
+                keepAliveInterval: 30,
                 onSuccess: onConnect,
-                onFailure: onFailure
+                onFailure: onFailure,
+                willMessage: willMessage // Pasang LWT di sini
             };
 
             try {
                 client.connect(options);
             } catch (e) {
-                console.error("Error koneksi:", e);
-                onFailure({errorMessage: "Gagal membuat koneksi"});
+                console.error(e);
+                onFailure({errorMessage: "Error Init"});
             }
         }
 
@@ -364,79 +370,36 @@
             isConnected = true;
             updateStatus('connected');
             
-            // Subscribe ke topic room
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
-            
-            // Hapus timer reconnect jika ada
-            if(reconnectInterval) clearInterval(reconnectInterval);
 
-            // Kirim pesan join
-            const joinMsg = { type: 'join', user: currentUser, text: 'telah bergabung', time: new Date().toLocaleTimeString() };
+            // 1. Kirim pesan "Saya Masuk" (Join)
+            const joinMsg = { type: 'join', user: currentUser, time: new Date().toLocaleTimeString() };
             publishMessage(joinMsg);
             
+            renderSystemMessage("Terhubung ke Server.");
             messageInput.disabled = false;
             sendBtn.disabled = false;
             messageInput.focus();
-            
-            renderSystemMessage("Terhubung ke Server.");
         }
 
-        function onFailure(responseObject) {
-            console.log("Gagal koneksi: " + responseObject.errorMessage);
+        function onFailure() {
             isConnected = false;
             updateStatus('disconnected');
             messageInput.disabled = true;
             sendBtn.disabled = true;
-            
-            // Coba reconnect otomatis dalam 3 detik
-            scheduleReconnect();
+            setTimeout(startConnection, 3000); // Auto reconnect
         }
 
         function onConnectionLost(responseObject) {
             if (responseObject.errorCode !== 0) {
-                console.log("Koneksi putus: " + responseObject.errorMessage);
+                console.log("Koneksi putus");
                 isConnected = false;
                 updateStatus('disconnected');
                 messageInput.disabled = true;
                 sendBtn.disabled = true;
-                
-                renderSystemMessage("⚠️ Koneksi terputus. Mencoba menghubungkan ulang...");
-                
-                // Coba reconnect otomatis
-                scheduleReconnect();
-            }
-        }
-
-        function scheduleReconnect() {
-            if (reconnectInterval) clearInterval(reconnectInterval);
-            
-            reconnectInterval = setInterval(() => {
-                console.log("Mencoba menyambung ulang...");
-                startConnection();
-            }, 3000); // Coba setiap 3 detik
-        }
-
-        function forceReconnect() {
-            if (reconnectInterval) clearInterval(reconnectInterval);
-            renderSystemMessage("Memaksa sambungan ulang...");
-            startConnection();
-        }
-
-        function updateStatus(state) {
-            statusBadge.className = 'connection-badge'; // Reset class
-            
-            if (state === 'connected') {
-                statusBadge.classList.add('connected');
-                statusText.textContent = "Terhubung";
-            } else if (state === 'connecting') {
-                statusBadge.style.background = '#333';
-                statusBadge.style.color = '#fff';
-                statusBadge.querySelector('.status-dot').style.background = '#fbbf24'; // Kuning
-                statusText.textContent = "Menghubungkan...";
-            } else {
-                statusBadge.classList.add('disconnected');
-                statusText.textContent = "Terputus (Klik)";
+                renderSystemMessage("⚠️ Terputus. Menghubungkan ulang...");
+                setTimeout(startConnection, 3000);
             }
         }
 
@@ -445,36 +408,112 @@
             const topic = "anonchat/room/" + currentRoom;
             const message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
             message.destinationName = topic;
-            try {
-                client.send(message);
-            } catch(e) {
-                console.error("Gagal kirim pesan", e);
-            }
+            try { client.send(message); } catch(e){}
         }
 
+        // --- PESAN MASUK (LOGIKA PALING PENTING) ---
         function onMessageArrived(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
-                if (payload.type === 'join') {
-                    addUserToList(payload.user, false);
-                    renderSystemMessage(`${payload.user} bergabung.`);
-                } else {
-                    renderChatMessage(payload.user, payload.text, payload.time, false);
-                    addUserToList(payload.user, false);
+
+                // 1. ABSEN PESAN DARI DIRI SENDIRI (Anti Echo)
+                // Ini yang membuat chat Anda tidak muncul dua kali atau di sisi yang salah
+                if (payload.user === currentUser) {
+                    return; 
                 }
+
+                // 2. Handle User Join
+                if (payload.type === 'join') {
+                    // Tambahkan user baru ke list
+                    updateActiveUser(payload.user, true);
+                    renderSystemMessage(`${payload.user} bergabung.`);
+                    
+                    // **HANDSHAKE**: Balas pesan join untuk memberitahu "Saya juga online"
+                    // Jadi user yang baru masuk tahu siapa saja yang sudah ada di dalam
+                    const presenceMsg = { type: 'presence', user: currentUser };
+                    publishMessage(presenceMsg);
+                }
+
+                // 3. Handle User Presence (Balasan dari user lama)
+                else if (payload.type === 'presence') {
+                    updateActiveUser(payload.user, true);
+                }
+
+                // 4. Handle User Leave
+                else if (payload.type === 'leave') {
+                    updateActiveUser(payload.user, false);
+                    renderSystemMessage(`${payload.user} keluar.`);
+                }
+
+                // 5. Handle Chat Biasa
+                else {
+                    renderChatMessage(payload.user, payload.text, payload.time, false);
+                }
+
             } catch(e) { console.error(e); }
+        }
+
+        // --- MANAJEMEN USER LIST ---
+        function updateActiveUser(username, isOnline) {
+            if (isOnline) {
+                // Jika belum ada di list, tambahkan
+                if (!activeUsers[username]) {
+                    activeUsers[username] = true;
+                    renderUserToList(username);
+                    updateUserCount();
+                }
+            } else {
+                // Jika offline, hapus dari list
+                if (activeUsers[username]) {
+                    delete activeUsers[username];
+                    const el = document.getElementById('user-item-' + username);
+                    if (el) el.remove();
+                    updateUserCount();
+                }
+            }
+        }
+
+        function renderUserToList(username) {
+            // Cek duplikasi DOM
+            if (document.getElementById('user-item-' + username)) return;
+
+            const color = userColors[username] || getRandomColor();
+            userColors[username] = color;
+            const initial = username.substring(0,2).toUpperCase();
+
+            const div = document.createElement('div');
+            div.className = 'user-item';
+            div.id = 'user-item-' + username;
+            div.innerHTML = `
+                <div class="user-avatar" style="background: ${color}">${initial}</div>
+                <div class="user-info">
+                    <div class="user-name">${username}</div>
+                    <div class="user-status-text">Online</div>
+                </div>
+                <div class="status-dot"></div>
+            `;
+            userListEl.appendChild(div);
+        }
+
+        function updateUserCount() {
+            userCountEl.textContent = Object.keys(activeUsers).length;
+        }
+
+        function leaveApp() {
+            // Kirim pesan leave manual
+            const leaveMsg = { type: 'leave', user: currentUser };
+            publishMessage(leaveMsg);
+            
+            // Tunggu sedikit agar pesan terkirim, lalu refresh
+            setTimeout(() => {
+                if (client) client.disconnect();
+                location.reload();
+            }, 500);
         }
 
         function sendMessage() {
             const text = messageInput.value.trim();
-            if(!text) return;
-
-            // Jika tidak terhubung, coba kirim pesan lokal saja (opsional) atau blokir
-            // Kita blokir demi keamanan data
-            if(!isConnected) {
-                alert("Tidak terhubung ke server. Tunggu indikator hijau.");
-                return;
-            }
+            if(!text || !isConnected) return;
 
             const msg = {
                 type: 'chat',
@@ -484,35 +523,28 @@
             };
 
             publishMessage(msg);
+            // Render Local (Kanan)
             renderChatMessage(currentUser, text, msg.time, true);
             messageInput.value = "";
         }
 
-        // --- UI RENDERERS ---
+        // --- UI HELPERS ---
+        function updateStatus(state) {
+            statusBadge.className = 'connection-badge';
+            if (state === 'connected') {
+                statusBadge.classList.add('connected');
+                statusText.textContent = "Online";
+            } else {
+                statusBadge.classList.add('disconnected');
+                statusText.textContent = "Offline";
+            }
+        }
 
         function getRandomColor() {
             const letters = '0123456789ABCDEF';
             let color = '#';
             for (let i = 0; i < 6; i++) color += letters[Math.floor(Math.random() * 16)];
             return color;
-        }
-
-        function addUserToList(username, isMe) {
-            if (knownUsers.has(username)) return;
-            knownUsers.add(username);
-            let avatarColor = isMe ? '#2d88ff' : getRandomColor();
-            if (username === 'System') avatarColor = '#555';
-            userColors[username] = avatarColor;
-
-            const div = document.createElement('div');
-            div.className = 'user-item';
-            div.id = 'user-' + username;
-            div.innerHTML = `
-                <div class="user-avatar" style="background: ${avatarColor}">${username.substring(0,2).toUpperCase()}</div>
-                <span>${username}</span>
-                <div class="user-status online"></div>
-            `;
-            userListEl.appendChild(div);
         }
 
         function renderChatMessage(user, text, time, isMe) {
@@ -525,7 +557,7 @@
             row.innerHTML = `
                 <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
                 <div class="msg-content">
-                    <div class="msg-name">${user}</div>
+                    ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${time}</span>
                 </div>
@@ -545,11 +577,7 @@
             messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
-        // Enter key
-        messageInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
         document.getElementById('roomid').value = "A-" + Math.floor(100 + Math.random() * 900);
 
     </script>
