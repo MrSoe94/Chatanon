@@ -212,7 +212,7 @@
             justify-content: center; font-size: 0.9rem; flex-shrink: 0;
             font-weight: bold; color: #fff;
         }
-        .msg-content { max-width: 70%; display: flex; flex-direction: column; }
+        .msg-content { max-width: 70%; display: flex; flex-direction: column; position: relative; }
         .msg-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 2px; color: var(--text-muted); }
         
         .msg-bubble {
@@ -426,6 +426,7 @@
         .private-chat-input-area {
             padding: 15px; background: var(--header-bg); border-top: 1px solid var(--border);
             display: flex; gap: 10px; align-items: center;
+            position: relative;
         }
         .private-chat-input {
             flex: 1; padding: 12px; background: var(--input-bg);
@@ -449,7 +450,7 @@
         #private-sticker-panel {
             display: none;
             position: absolute;
-            bottom: 100%;
+            bottom: calc(100% + 10px);
             left: 0;
             right: 0;
             background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
@@ -458,13 +459,14 @@
             max-height: 250px;
             overflow-y: auto;
             padding: 15px;
-            margin-bottom: 5px;
             box-shadow: 0 -8px 25px rgba(52, 152, 219, 0.4);
             z-index: 1000;
+            min-height: 200px;
         }
         #private-sticker-panel.show {
-            display: block;
+            display: block !important;
             animation: privateSlideUp 0.3s ease;
+            z-index: 1001 !important;
         }
         @keyframes privateSlideUp { 
             from { transform: translateY(30px); opacity: 0; } 
@@ -600,10 +602,7 @@
         }
         .private-chat-messages .msg-content {
             flex: 1; max-width: 70%;
-        }
-        .private-chat-messages .msg-name {
-            font-weight: 600; margin-bottom: 4px; font-size: 0.85rem;
-            color: var(--text-muted);
+            position: relative;
         }
         .private-chat-messages .msg-bubble {
             background: var(--input-bg); padding: 8px 12px;
@@ -731,8 +730,9 @@
             font-size: 0.7rem;
             cursor: pointer;
             transition: opacity 0.2s, background 0.2s;
-            top: 5px;
+            top: -5px;
             right: 5px;
+            z-index: 10;
         }
         .reply-button:hover {
             background: #008f6f;
@@ -905,17 +905,17 @@
                 
                 <button class="action-btn" id="private-sticker-btn" title="Stiker">😀</button>
                 
+                <!-- Private Chat Sticker Panel -->
+                <div id="private-sticker-panel">
+                    <div class="private-sticker-header">
+                        <span>🎨 Stiker Privat</span>
+                        <button class="private-sticker-close" onclick="privateStickerPanel.classList.remove('show')">✕</button>
+                    </div>
+                    <div class="sticker-grid" id="private-sticker-grid"></div>
+                </div>
+                
                 <input type="text" class="private-chat-input" id="private-chat-input" placeholder="Ketik pesan privat..." onkeypress="if(event.key==='Enter') sendPrivateMessage()">
                 <button class="private-chat-send" onclick="sendPrivateMessage()">Kirim</button>
-            </div>
-            
-            <!-- Private Chat Sticker Panel -->
-            <div id="private-sticker-panel">
-                <div class="private-sticker-header">
-                    <span>🎨 Stiker Privat</span>
-                    <button class="private-sticker-close" onclick="privateStickerPanel.classList.remove('show')">✕</button>
-                </div>
-                <div class="sticker-grid" id="private-sticker-grid"></div>
             </div>
         </div>
     </div>
@@ -1062,6 +1062,7 @@
         // Private Chat Variables
         let currentPrivateChatUser = '';
         let privateChatHistory = {};
+        let privateReplyToMessage = null;
         let mentionStartPos = -1;
 
         // Mention Suggestion Variables
@@ -1366,6 +1367,9 @@
             privateStickerPanel.classList.toggle('show');
             // Generate ulang sticker grid untuk memastikan fresh
             if (privateStickerPanel.classList.contains('show')) {
+                console.log('Opening private sticker panel');
+                console.log('Panel position:', privateStickerPanel.getBoundingClientRect());
+                console.log('Parent position:', privateStickerPanel.parentElement.getBoundingClientRect());
                 generatePrivateStickerGrid();
             }
         });
@@ -1897,7 +1901,7 @@
                 privateChatHistory[username].forEach(msg => {
                     if (msg.from === currentUser) {
                         if (msg.type === 'private_chat') {
-                            renderPrivateMessage(msg.from, msg.text, msg.time, true);
+                            renderPrivateMessage(msg.from, msg.text, msg.time, true, msg.replyTo);
                         } else if (msg.type === 'private_sticker') {
                             renderPrivateStickerMessage(msg.from, msg.content, msg.time, true);
                         } else if (msg.type === 'private_file') {
@@ -1905,7 +1909,7 @@
                         }
                     } else {
                         if (msg.type === 'private_chat') {
-                            renderPrivateMessage(msg.from, msg.text, msg.time, false);
+                            renderPrivateMessage(msg.from, msg.text, msg.time, false, msg.replyTo);
                         } else if (msg.type === 'private_sticker') {
                             renderPrivateStickerMessage(msg.from, msg.content, msg.time, false);
                         } else if (msg.type === 'private_file') {
@@ -1936,8 +1940,13 @@
                 time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
             };
 
+            // Add reply info if replying to a message
+            if (privateReplyToMessage) {
+                msg.replyTo = privateReplyToMessage;
+            }
+
             publishMessage(msg);
-            renderPrivateMessage(currentUser, text, msg.time, true);
+            renderPrivateMessage(currentUser, text, msg.time, true, privateReplyToMessage);
 
             if (!privateChatHistory[currentPrivateChatUser]) {
                 privateChatHistory[currentPrivateChatUser] = [];
@@ -1945,21 +1954,34 @@
             privateChatHistory[currentPrivateChatUser].push(msg);
 
             privateChatInput.value = '';
+            privateReplyToMessage = null; // Clear reply after sending
         }
 
-        function renderPrivateMessage(from, text, time, isMe) {
+        function renderPrivateMessage(from, text, time, isMe, replyTo) {
             const row = document.createElement('div');
             row.className = `msg-row ${isMe ? 'me' : 'them'}`;
             const avatarColor = userColors[from] || '#777';
             const initial = from.substring(0,2).toUpperCase();
             const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+            let quotedMessageHTML = '';
+            if (replyTo) {
+                quotedMessageHTML = `
+                    <div class="quoted-message">
+                        <div class="quoted-author">${replyTo.from}</div>
+                        <div class="quoted-text">${replyTo.text}</div>
+                    </div>
+                `;
+            }
+
             row.innerHTML = `
                 <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
                 <div class="msg-content">
                     <div class="msg-name">${from} (Private)</div>
+                    ${quotedMessageHTML}
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${time}</span>
+                    <button class="reply-button" onclick="startPrivateReply(${JSON.stringify({from: from, text: text, time: time}).replace(/"/g, '&quot;')})">Reply</button>
                 </div>
             `;
             privateChatMessages.appendChild(row);
@@ -2112,6 +2134,11 @@
             replyPreviewText.textContent = message.text;
             replyPreview.style.display = 'flex';
             messageInput.focus();
+        }
+
+        function startPrivateReply(message) {
+            privateReplyToMessage = message;
+            privateChatInput.focus();
         }
 
         function cancelReply() {
