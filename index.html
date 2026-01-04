@@ -1197,7 +1197,6 @@
         function onMessageArrived(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
-                console.log('Received message:', payload);
 
                 if (payload.user === currentUser || payload.from === currentUser) return;
 
@@ -1367,10 +1366,8 @@
             privateStickerPanel.classList.toggle('show');
             // Generate ulang sticker grid untuk memastikan fresh
             if (privateStickerPanel.classList.contains('show')) {
-                console.log('Opening private sticker panel');
-                console.log('Panel position:', privateStickerPanel.getBoundingClientRect());
-                console.log('Parent position:', privateStickerPanel.parentElement.getBoundingClientRect());
                 generatePrivateStickerGrid();
+                
             }
         });
 
@@ -1562,7 +1559,6 @@
                 msg.replyTo = replyToMessage;
             }
             
-            console.log('Sending message:', msg); // Debug log
             publishMessage(msg);
             renderChatMessage(currentUser, text, msg.time, true, replyToMessage);
             
@@ -2207,7 +2203,6 @@
         // --- EXIT & CLEAN LOGIC ---
 
         function cleanAppData() {
-            console.log("Membersihkan data aplikasi...");
             localStorage.clear();
             sessionStorage.clear();
             messageInput.value = ""; timerInput.value = "";
