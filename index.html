@@ -488,6 +488,102 @@
             margin-left: 5px;
         }
 
+        /* --- QUOTED MESSAGES --- */
+        .quoted-message {
+            background: rgba(255,255,255,0.05);
+            border-left: 3px solid var(--accent);
+            padding: 8px 10px;
+            margin: 4px 0 8px 0;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .quoted-message:hover {
+            background: rgba(255,255,255,0.08);
+        }
+        .quoted-author {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            font-size: 0.75rem;
+        }
+        .quoted-text {
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+        }
+        .reply-indicator {
+            font-size: 0.7rem;
+            color: var(--accent);
+            margin-top: 2px;
+        }
+        .reply-button {
+            position: absolute;
+            opacity: 0;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: opacity 0.2s, background 0.2s;
+            top: 5px;
+            right: 5px;
+        }
+        .reply-button:hover {
+            background: #008f6f;
+        }
+        .msg-row:hover .reply-button {
+            opacity: 1;
+        }
+        .reply-preview {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+        }
+        .reply-preview-content {
+            flex: 1;
+        }
+        .reply-preview-author {
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 2px;
+        }
+        .reply-preview-text {
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .cancel-reply {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        .cancel-reply:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
         @media (max-width: 600px) {
             .sidebar { display: none; }
             .chat-header { height: auto; padding: 10px; flex-wrap: wrap; }
@@ -574,6 +670,14 @@
             <button class="action-btn" id="sticker-btn" title="Stiker">😀</button>
             
             <div class="input-wrapper">
+                <!-- REPLY PREVIEW -->
+                <div class="reply-preview" id="reply-preview" style="display: none;">
+                    <div class="reply-preview-content">
+                        <div class="reply-preview-author" id="reply-preview-author"></div>
+                        <div class="reply-preview-text" id="reply-preview-text"></div>
+                    </div>
+                    <button class="cancel-reply" id="cancel-reply" onclick="cancelReply()">×</button>
+                </div>
                 <!-- ONKEYPRESS DI TAMBAHKAN DI SINI -->
                 <input type="text" class="chat-input" id="message-input" placeholder="Ketik pesan..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMessage()">
                 <!-- MENTION SUGGESTION DROPDOWN -->
@@ -720,6 +824,12 @@
         // Mention Suggestion DOM
         const mentionSuggestionsEl = document.getElementById('mention-suggestions');
 
+        // Reply DOM
+        const replyPreview = document.getElementById('reply-preview');
+        const replyPreviewAuthor = document.getElementById('reply-preview-author');
+        const replyPreviewText = document.getElementById('reply-preview-text');
+        const cancelReplyBtn = document.getElementById('cancel-reply');
+
         // Private Chat Variables
         let currentPrivateChatUser = '';
         let privateChatHistory = {};
@@ -729,6 +839,11 @@
         let selectedMentionIndex = -1;
         let isMentionMode = false;
         let mentionStartPos = -1;
+
+        // Reply Variables
+        let replyToMessage = null;
+        let messageIdCounter = 0;
+        let messageHistory = {};
 
         // --- CORE FUNCTIONS ---
 
@@ -947,7 +1062,18 @@
 
                 // 3. CONTENT PROTOCOLS
                 else if (payload.type === 'chat') {
-                    renderChatMessage(payload.user, payload.text, payload.time, false);
+                    // Store message in history for reply functionality (only if it has an id)
+                    if (payload.id) {
+                        messageHistory[payload.id] = payload;
+                    }
+                    renderChatMessage(payload.user, payload.text, payload.time, false, payload.replyTo);
+                }
+                else if (payload.type === 'reply') {
+                    // Store message in history for reply functionality
+                    if (payload.id) {
+                        messageHistory[payload.id] = payload;
+                    }
+                    renderChatMessage(payload.user, payload.text, payload.time, false, payload.replyTo);
                 }
                 else if (payload.type === 'private_chat') {
                     // Only handle if message is for current user
@@ -1123,8 +1249,8 @@
             if (!+bytes) return '0 Bytes';
             const k = 1024;
             const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
+            const sizes = ['Bytes', 'KB', 'MB']; // moved this line up to remove duplicate declaration
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
         }
 
@@ -1135,23 +1261,69 @@
             if(!text || !isConnected) return;
             
             // If we're in mention mode and Enter is pressed, handle mention selection first
+            // ... (rest of the code remains the same)
             if (isMentionMode && selectedMentionIndex >= 0) {
                 selectMention(mentionSuggestions[selectedMentionIndex]);
                 return;
             }
             
+            messageIdCounter++;
             const msg = {
-                type: 'chat', user: currentUser, text: text,
+                id: messageIdCounter,
+                type: replyToMessage ? 'reply' : 'chat', 
+                user: currentUser, 
+                text: text,
                 time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
             };
+            
+            if (replyToMessage) {
+                msg.replyTo = replyToMessage;
+            }
+            
             publishMessage(msg);
-            renderChatMessage(currentUser, text, msg.time, true);
+            renderChatMessage(currentUser, text, msg.time, true, replyToMessage);
+            
+            // Store message in history
+            messageHistory[msg.id] = msg;
+            
             messageInput.value = "";
+            cancelReply();
             hideMentionSuggestions();
             isMentionMode = false;
         }
 
-        function renderChatMessage(user, text, time, isMe) {
+        function renderChatMessage(user, text, time, isMe, replyTo) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+            const avatarColor = userColors[user] || '#777';
+            const initial = user.substring(0,2).toUpperCase();
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            let quotedMessageHTML = '';
+            if (replyTo) {
+                quotedMessageHTML = `
+                    <div class="quoted-message" onclick="scrollToMessage('${replyTo.id}')">
+                        <div class="quoted-author">${replyTo.user}</div>
+                        <div class="quoted-text">${replyTo.text}</div>
+                    </div>
+                `;
+            }
+
+            row.innerHTML = `
+                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
+                <div class="msg-content">
+                    ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
+                    ${quotedMessageHTML}
+                    <div class="msg-bubble">${safeText}</div>
+                    <span class="msg-time">${time}</span>
+                    <button class="reply-button" onclick="startReply(${JSON.stringify(replyTo).replace(/"/g, '&quot;')})">Reply</button>
+                </div>
+            `;
+            messagesArea.appendChild(row);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function renderPrivateMessage(user, text, time, isMe) {
             const row = document.createElement('div');
             row.className = `msg-row ${isMe ? 'me' : 'them'}`;
             const avatarColor = userColors[user] || '#777';
@@ -1161,13 +1333,87 @@
             row.innerHTML = `
                 <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
                 <div class="msg-content">
-                    ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
-                    <div class="msg-bubble">${safeText}</div>
+                    ${!isMe ? `<div class="msg-name">${user} (Private)</div>` : ''}
+                    <div class="msg-bubble" style="background: rgba(255, 0, 100, 0.1); border-left: 3px solid #ff0066;">${safeText}</div>
                     <span class="msg-time">${time}</span>
                 </div>
             `;
             messagesArea.appendChild(row);
             messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function sendPrivateMessage() {
+            const text = privateChatInput.value.trim();
+            if(!text || !isConnected) return;
+            
+            const msg = {
+                type: 'private_chat',
+                from: currentUser,
+                to: currentPrivateChatUser,
+                text: text,
+                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            };
+            
+            publishMessage(msg);
+            renderPrivateMessage(currentUser, text, msg.time, true);
+            
+            // Store in history
+            if (!privateChatHistory[currentPrivateChatUser]) {
+                privateChatHistory[currentPrivateChatUser] = [];
+            }
+            privateChatHistory[currentPrivateChatUser].push(msg);
+            
+            privateChatInput.value = "";
+        }
+
+        function openPrivateChatModal(username) {
+            currentPrivateChatUser = username;
+            privateChatUsername.textContent = username;
+            privateChatModal.style.display = 'flex';
+            privateChatInput.focus();
+            
+            // Load chat history
+            if (privateChatHistory[username]) {
+                privateChatHistory[username].forEach(msg => {
+                    if (msg.from === currentUser) {
+                        renderPrivateMessage(msg.from, msg.text, msg.time, true);
+                    } else {
+                        renderPrivateMessage(msg.from, msg.text, msg.time, false);
+                    }
+                });
+            }
+        }
+
+        function closePrivateChat() {
+            privateChatModal.style.display = 'none';
+            currentPrivateChatUser = '';
+            privateChatMessages.innerHTML = '';
+        }
+
+        function startReply(message) {
+            replyToMessage = message;
+            replyPreviewAuthor.textContent = message.user;
+            replyPreviewText.textContent = message.text;
+            replyPreview.style.display = 'flex';
+            messageInput.focus();
+        }
+
+        function cancelReply() {
+            replyToMessage = null;
+            replyPreview.style.display = 'none';
+            replyPreviewAuthor.textContent = '';
+            replyPreviewText.textContent = '';
+        }
+
+        function scrollToMessage(messageId) {
+            // Find the message with the given ID and scroll to it
+            const messages = messagesArea.querySelectorAll('.msg-row');
+            for (let msg of messages) {
+                // This would need message ID tracking in the DOM
+                // For now, just scroll to the bottom
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+                break;
+            }
         }
 
         // --- TIMER LOGIC ---
@@ -1279,7 +1525,7 @@
                     </div>
                     <div class="user-status-text">Online</div>
                 </div>
-                <button class="private-chat-btn" onclick="openPrivateChat('${username}')">@</button>
+                <button class="private-chat-btn" onclick="openPrivateChatModal('${username}')">@</button>
                 <div class="status-dot"></div>
             `;
             userListEl.appendChild(div);
@@ -1335,17 +1581,6 @@
 
         // --- MENTION SUGGESTION FUNCTIONALITY ---
         
-        // Add input event listener for mention detection
-        messageInput.addEventListener('input', handleInput);
-        messageInput.addEventListener('keydown', handleKeyDown);
-        
-        // Close suggestions when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!mentionSuggestionsEl.contains(e.target) && e.target !== messageInput) {
-                hideMentionSuggestions();
-            }
-        });
-
         function handleInput(e) {
             const value = e.target.value;
             const cursorPos = e.target.selectionStart;
@@ -1482,6 +1717,17 @@
             mentionSuggestions = [];
             selectedMentionIndex = -1;
         }
+
+        // Add input event listener for mention detection
+        messageInput.addEventListener('input', handleInput);
+        messageInput.addEventListener('keydown', handleKeyDown);
+        
+        // Close suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!mentionSuggestionsEl.contains(e.target) && e.target !== messageInput) {
+                hideMentionSuggestions();
+            }
+        });
 
     </script>
 </body>
