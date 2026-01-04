@@ -80,6 +80,7 @@
         .user-item {
             padding: 10px 15px; display: flex; align-items: center; gap: 10px;
             border-bottom: 1px solid rgba(255,255,255,0.05);
+            position: relative;
         }
         .user-avatar {
             width: 40px; height: 40px; border-radius: 50%;
@@ -92,6 +93,13 @@
         .host-badge { color: var(--host-gold); font-size: 1rem; }
         .user-status-text { font-size: 0.75rem; color: var(--online-green); }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--online-green); }
+        .private-chat-btn {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            background: var(--accent); color: white; border: none; border-radius: 4px;
+            padding: 4px 8px; font-size: 0.7rem; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .private-chat-btn:hover { background: #008f6f; }
 
         .main-content {
             flex: 1;
@@ -375,6 +383,52 @@
         /* Hidden File Input */
         #file-input { display: none; }
 
+        /* --- PRIVATE CHAT MODAL --- */
+        #private-chat-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 3000;
+            justify-content: center; align-items: center;
+        }
+        .private-chat-container {
+            background: var(--sidebar-bg); width: 400px; height: 500px;
+            border-radius: 8px; display: flex; flex-direction: column;
+            border: 1px solid var(--border);
+        }
+        .private-chat-header {
+            padding: 15px; background: var(--header-bg); border-radius: 8px 8px 0 0;
+            display: flex; justify-content: space-between; align-items: center;
+            color: white; font-weight: bold;
+        }
+        .private-chat-messages {
+            flex: 1; padding: 15px; overflow-y: auto;
+            background: var(--bg-dark);
+        }
+        .private-chat-input-area {
+            padding: 10px; background: var(--header-bg); border-top: 1px solid var(--border);
+            display: flex; gap: 8px;
+        }
+        .private-chat-input {
+            flex: 1; padding: 8px; background: var(--input-bg);
+            border: 1px solid var(--border); border-radius: 4px; color: white;
+            outline: none;
+        }
+        .private-chat-send {
+            background: var(--accent); color: white; border: none;
+            padding: 8px 15px; border-radius: 4px; cursor: pointer;
+            font-weight: bold;
+        }
+        .private-msg-bubble {
+            background: var(--bubble-them); padding: 8px 12px;
+            border-radius: 8px; margin-bottom: 8px; max-width: 80%;
+            word-wrap: break-word;
+        }
+        .private-msg-bubble.me {
+            background: var(--bubble-me); margin-left: auto;
+        }
+        .private-msg-time {
+            font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;
+        }
+
         @media (max-width: 600px) {
             .sidebar { display: none; }
             .chat-header { height: auto; padding: 10px; flex-wrap: wrap; }
@@ -467,6 +521,21 @@
             <button class="btn-send" id="send-btn" onclick="sendMessage()">Send</button>
         </div>
     </main>
+
+    <!-- PRIVATE CHAT MODAL -->
+    <div id="private-chat-modal">
+        <div class="private-chat-container">
+            <div class="private-chat-header">
+                <span id="private-chat-username">Private Chat</span>
+                <button onclick="closePrivateChat()" style="background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;">×</button>
+            </div>
+            <div class="private-chat-messages" id="private-chat-messages"></div>
+            <div class="private-chat-input-area">
+                <input type="text" class="private-chat-input" id="private-chat-input" placeholder="Ketik pesan privat..." onkeypress="if(event.key==='Enter') sendPrivateMessage()">
+                <button class="private-chat-send" onclick="sendPrivateMessage()">Kirim</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const MQTT_HOST = "broker.emqx.io";
@@ -580,6 +649,16 @@
         // File DOM
         const fileBtn = document.getElementById('file-btn');
         const fileInput = document.getElementById('file-input');
+
+        // Private Chat DOM
+        const privateChatModal = document.getElementById('private-chat-modal');
+        const privateChatUsername = document.getElementById('private-chat-username');
+        const privateChatMessages = document.getElementById('private-chat-messages');
+        const privateChatInput = document.getElementById('private-chat-input');
+
+        // Private Chat Variables
+        let currentPrivateChatUser = '';
+        let privateChatHistory = {};
 
         // --- CORE FUNCTIONS ---
 
@@ -799,6 +878,17 @@
                 // 3. CONTENT PROTOCOLS
                 else if (payload.type === 'chat') {
                     renderChatMessage(payload.user, payload.text, payload.time, false);
+                }
+                else if (payload.type === 'private_chat') {
+                    // Only handle if message is for current user
+                    if (payload.to === currentUser) {
+                        renderPrivateMessage(payload.from, payload.text, payload.time, false);
+                        // Store in history
+                        if (!privateChatHistory[payload.from]) {
+                            privateChatHistory[payload.from] = [];
+                        }
+                        privateChatHistory[payload.from].push(payload);
+                    }
                 }
                 else if (payload.type === 'sticker') {
                     renderStickerMessage(payload.user, payload.content, payload.time, false);
@@ -1093,6 +1183,8 @@
 
         function renderUserToList(username) {
             if (document.getElementById('user-item-' + username)) return;
+            if (username === currentUser) return; // Don't show private chat button for self
+            
             const color = userColors[username] || getRandomColor();
             userColors[username] = color;
             const initial = username.substring(0,2).toUpperCase();
@@ -1108,6 +1200,7 @@
                     </div>
                     <div class="user-status-text">Online</div>
                 </div>
+                <button class="private-chat-btn" onclick="openPrivateChat('${username}')">@</button>
                 <div class="status-dot"></div>
             `;
             userListEl.appendChild(div);
@@ -1116,6 +1209,25 @@
         function updateUserListHostBadge(username, isHost) {
             const badge = document.getElementById('host-badge-' + username);
             if(badge) { badge.style.display = isHost ? 'inline-block' : 'none'; }
+        }
+
+        // --- MENTION FUNCTION ---
+        function openPrivateChat(username) {
+            // Focus ke input chat utama dan tambahkan @username
+            messageInput.focus();
+            
+            // Tambahkan @username ke input jika belum ada
+            const currentValue = messageInput.value.trim();
+            const mention = `@${username}`;
+            
+            if (currentValue === '') {
+                messageInput.value = mention + ' ';
+            } else if (!currentValue.includes(mention)) {
+                messageInput.value = currentValue + ' ' + mention + ' ';
+            }
+            
+            // Pindahkan cursor ke akhir input
+            messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
         }
 
         function updateStatus(state) {
