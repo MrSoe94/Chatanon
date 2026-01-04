@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Realtime Chat with Timer</title>
+    <title>Host Controlled Room</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
@@ -18,6 +18,7 @@
             --danger: #dc3545;
             --online-green: #31a24c;
             --border: #3e4042;
+            --host-gold: #fbbf24;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -82,7 +83,8 @@
             font-weight: bold; color: white;
         }
         .user-info { flex:1; }
-        .user-name { font-weight: 600; font-size: 0.95rem; }
+        .user-name { font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 5px;}
+        .host-badge { color: var(--host-gold); font-size: 1rem; } /* Mahkota */
         .user-status-text { font-size: 0.75rem; color: var(--online-green); }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--online-green); }
 
@@ -96,7 +98,7 @@
 
         /* --- HEADER --- */
         .chat-header {
-            height: 60px; /* Tambahan tinggi untuk timer control */
+            height: 60px;
             background-color: var(--header-bg);
             border-bottom: 1px solid var(--border);
             display: flex;
@@ -116,7 +118,15 @@
             display: flex;
             gap: 5px;
             align-items: center;
+            transition: opacity 0.3s;
         }
+        /* Class untuk menonaktifkan timer secara visual */
+        .timer-controls.disabled {
+            opacity: 0.4;
+            pointer-events: none; /* Tidak bisa diklik */
+            filter: grayscale(1);
+        }
+
         .timer-input {
             width: 50px;
             background: var(--input-bg);
@@ -130,7 +140,6 @@
             background: #444; color: white; border: 1px solid #555;
             padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
         }
-        .btn-timer:hover { background: #555; }
         .btn-timer.active { background: var(--danger); border-color: var(--danger); }
 
         .header-right { display: flex; align-items: center; gap: 10px; }
@@ -154,14 +163,14 @@
             transform: translate(-50%, -50%);
             font-size: 8rem;
             font-weight: 900;
-            color: rgba(255, 255, 255, 0.05); /* Transparan */
-            pointer-events: none; /* Klik tembus ke chat */
+            color: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
             z-index: 1;
             white-space: nowrap;
             font-variant-numeric: tabular-nums;
             transition: color 0.3s;
         }
-        #timer-watermark.urgent { color: rgba(220, 53, 69, 0.15); } /* Merah jika mau habis */
+        #timer-watermark.urgent { color: rgba(220, 53, 69, 0.15); }
 
         /* --- CHAT AREA --- */
         #messages-area {
@@ -171,7 +180,7 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            z-index: 5; /* Di atas watermark */
+            z-index: 5;
             position: relative;
         }
         
@@ -197,7 +206,6 @@
         }
         .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-align: right; display: block;}
 
-        /* Style pesan sendiri */
         .msg-row.me { flex-direction: row-reverse; }
         .msg-row.me .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
         .msg-row.me .msg-name { display: none; }
@@ -286,7 +294,7 @@
                     <span class="room-id" id="display-room-id">---</span>
                 </div>
                 <!-- TIMER CONTROL -->
-                <div class="timer-controls">
+                <div class="timer-controls" id="timer-controls">
                     <input type="number" id="timer-minutes" class="timer-input" placeholder="Menit" min="1" max="60">
                     <button class="btn-timer" id="btn-set-timer" onclick="setTimer()">⏱ Set Timer</button>
                 </div>
@@ -303,7 +311,7 @@
 
         <div id="messages-area">
             <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-                Selamat datang. Gunakan timer untuk batasi waktu diskusi.
+                Selamat datang. Hanya Host (User pertama) yang bisa mengatur timer.
             </div>
         </div>
 
@@ -324,6 +332,11 @@
         let currentUser = "";
         let currentRoom = "";
         
+        // HOST VARIABLES
+        let isHost = false;
+        let currentHost = "";
+        let hostCheckTimeout = null;
+
         // User Management
         let activeUsers = {}; 
         let userColors = {};
@@ -345,6 +358,7 @@
         const timerWatermark = document.getElementById('timer-watermark');
         const timerInput = document.getElementById('timer-minutes');
         const btnSetTimer = document.getElementById('btn-set-timer');
+        const timerControls = document.getElementById('timer-controls'); // Container untuk disable
         const expiredOverlay = document.getElementById('expired-overlay');
 
         // --- CORE FUNCTIONS ---
@@ -368,7 +382,7 @@
 
         function startConnection() {
             updateStatus('connecting');
-            const clientId = "chat_timer_" + Math.random().toString(16).substr(2, 8);
+            const clientId = "chat_host_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
@@ -392,13 +406,68 @@
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
 
-            // Send Join
+            // 1. Kirim pesan Join biasa
             publishMessage({ type: 'join', user: currentUser });
             
-            renderSystemMessage("Terhubung ke Server.");
+            // 2. TANYA: "Siapa Host?"
+            // Kita beri waktu 1.5 detik bagi Host yang sudah ada untuk menjawab.
+            checkHostElection();
+            
             messageInput.disabled = false;
             sendBtn.disabled = false;
             messageInput.focus();
+        }
+
+        // --- HOST ELECTION LOGIC ---
+
+        function checkHostElection() {
+            // Kirim pertanyaan
+            publishMessage({ type: 'host_query', user: currentUser });
+            
+            // Tunggu jawaban...
+            hostCheckTimeout = setTimeout(() => {
+                // Jika 1.5 detik tidak ada yang menjawab "I am Host", berarti ROOM KOSONG.
+                // Saya jadi Host!
+                becomeHost();
+            }, 1500);
+        }
+
+        function becomeHost() {
+            isHost = true;
+            currentHost = currentUser;
+            
+            console.log("I am the Host");
+            
+            // Enable UI Timer
+            timerControls.classList.remove('disabled');
+            timerInput.disabled = false;
+            btnSetTimer.disabled = false;
+
+            renderSystemMessage("Anda adalah HOST Room ini. Anda bisa mengatur timer.");
+            
+            // Broadcast ke semua: "Saya Host!"
+            publishMessage({ type: 'announce_host', user: currentUser });
+
+            // Update Sidebar (Sendiri)
+            updateUserListHostBadge(currentUser, true);
+        }
+
+        function becomeGuest(hostName) {
+            isHost = false;
+            currentHost = hostName;
+            
+            console.log("Guest mode. Host is: " + hostName);
+
+            // Disable UI Timer
+            timerControls.classList.add('disabled');
+            timerInput.disabled = true;
+            btnSetTimer.disabled = true;
+            timerInput.placeholder = "Host Only";
+
+            renderSystemMessage(`Host Room saat ini: ${hostName}. Hanya host yang bisa set timer.`);
+
+            // Update Sidebar
+            updateUserListHostBadge(hostName, true);
         }
 
         function onFailure() {
@@ -434,14 +503,35 @@
                 const payload = JSON.parse(message.payloadString);
                 if (payload.user === currentUser) return;
 
-                // 1. HANDLE TIMER MESSAGES
-                if (payload.type === 'timer_start') {
+                // 1. HOST PROTOCOLS
+                if (payload.type === 'host_query') {
+                    // Jika saya Host, dan ada orang baru nanya "Siapa host?", jawab segera!
+                    if (isHost) {
+                        publishMessage({ type: 'announce_host', user: currentUser });
+                    }
+                }
+                else if (payload.type === 'announce_host') {
+                    // Ada orang mengklaim host. 
+                    // Hentikan timeout saya, karena saya tahu sekarang saya bukan host (atau host yang lain).
+                    clearTimeout(hostCheckTimeout);
+                    
+                    // Jika saya belum jadi host (karena menunggu timeout), jadilah guest.
+                    if (!isHost && currentHost !== payload.user) {
+                        becomeGuest(payload.user);
+                    }
+                    
+                    // Update UI badge di sidebar
+                    updateUserListHostBadge(payload.user, true);
+                }
+
+                // 2. TIMER MESSAGES
+                else if (payload.type === 'timer_start') {
                     syncTimer(payload.endTime);
                 } else if (payload.type === 'timer_end') {
                     forceKickout();
                 }
 
-                // 2. HANDLE PRESENCE MESSAGES
+                // 3. PRESENCE MESSAGES
                 else if (payload.type === 'join') {
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
@@ -450,18 +540,28 @@
                     const presenceMsg = { type: 'presence', user: currentUser };
                     publishMessage(presenceMsg);
                     
-                    if(timerEndTime) {
+                    // Jika Host dan timer jalan, kirim ulang info timer
+                    if(isHost && timerEndTime) {
                         publishMessage({ type: 'timer_start', endTime: timerEndTime });
                     }
                 }
                 else if (payload.type === 'presence') {
                     updateActiveUser(payload.user, true);
-                    // If I just joined and someone sends back presence, ask for timer if they are running one?
-                    // Simplified: Presence handles user list.
                 }
                 else if (payload.type === 'leave') {
                     updateActiveUser(payload.user, false);
-                    renderSystemMessage(`${payload.user} keluar.`);
+                    
+                    // Jika Host yang keluar
+                    if (payload.user === currentHost) {
+                        currentHost = ""; // Host hilang
+                        renderSystemMessage("Host telah keluar room.");
+                        // Disable timer controls untuk semua sisanya (kebijakan sederhana)
+                        timerControls.classList.add('disabled');
+                        timerInput.disabled = true;
+                        btnSetTimer.disabled = true;
+                    } else {
+                        renderSystemMessage(`${payload.user} keluar.`);
+                    }
                 }
                 else if (payload.type === 'chat') {
                     renderChatMessage(payload.user, payload.text, payload.time, false);
@@ -473,6 +573,12 @@
         // --- TIMER LOGIC ---
 
         function setTimer() {
+            // Cek apakah host
+            if (!isHost) {
+                alert("Hanya Host yang bisa mengatur timer!");
+                return;
+            }
+
             const mins = parseInt(timerInput.value);
             if(!mins || mins <= 0) { alert("Masukkan menit yang valid"); return; }
 
@@ -502,8 +608,11 @@
                 if (diff <= 0) {
                     clearInterval(timerInterval);
                     timerWatermark.textContent = "00:00";
-                    // Broadcast Time's Up
-                    publishMessage({ type: 'timer_end' });
+                    // Broadcast Time's Up (Hanya Host yang boleh trigger ini, tapi untuk keamanan kita biarkan siapa saja jika ter-sync)
+                    // Idealnya Host yang mengirim end, tapi jika Host putus, timer akan jalan sendiri di client.
+                    // Untuk memaksa kick bersama, Host harus kirim timer_end.
+                    if(isHost) publishMessage({ type: 'timer_end' });
+                    
                     forceKickout();
                 } else {
                     updateTimerUI(diff);
@@ -519,7 +628,6 @@
             
             timerWatermark.textContent = timeString;
             
-            // Visual warning
             if(totalSeconds < 30) {
                 timerWatermark.classList.add('urgent');
             } else {
@@ -530,13 +638,8 @@
         function forceKickout() {
             expiredOverlay.style.display = 'flex';
             clearInterval(timerInterval);
-            // Disconnect MQTT
             if(client) try { client.disconnect(); } catch(e){}
-            
-            // Reload after delay
-            setTimeout(() => {
-                location.reload();
-            }, 3000);
+            setTimeout(() => { location.reload(); }, 3000);
         }
 
         // --- UI HELPERS ---
@@ -570,12 +673,21 @@
             div.innerHTML = `
                 <div class="user-avatar" style="background: ${color}">${initial}</div>
                 <div class="user-info">
-                    <div class="user-name">${username}</div>
+                    <div class="user-name" id="name-${username}">
+                        ${username} <span class="host-badge" id="host-badge-${username}" style="display:none">👑</span>
+                    </div>
                     <div class="user-status-text">Online</div>
                 </div>
                 <div class="status-dot"></div>
             `;
             userListEl.appendChild(div);
+        }
+
+        function updateUserListHostBadge(username, isHost) {
+            const badge = document.getElementById('host-badge-' + username);
+            if(badge) {
+                badge.style.display = isHost ? 'inline-block' : 'none';
+            }
         }
 
         function leaveApp() {
