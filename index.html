@@ -3,402 +3,468 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AnonChat Multi-Device</title>
-    <!-- Paho MQTT Library untuk koneksi Internet -->
+    <title>Room Chat UI - SSSST Style</title>
+    <!-- Paho MQTT Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
         :root {
-            --bg-color: #0f172a;
-            --chat-bg: #1e293b;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
-            --bubble-me: #6366f1;
-            --bubble-them: #334155;
-            --border: #334155;
-            --danger: #ef4444;
-            --success: #10b981;
-            --radius: 12px;
+            --bg-dark: #18191a; /* Warna background utama mirip gambar */
+            --sidebar-bg: #242526;
+            --header-bg: #242526;
+            --input-bg: #3a3b3c;
+            --text-main: #e4e6eb;
+            --text-muted: #b0b3b8;
+            --accent: #2d88ff;
+            --exit-red: #dc3545;
+            --online-green: #31a24c;
+            --border: #3e4042;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-
-        /* LOGIN SCREEN */
-        #login-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-color); display: flex; justify-content: center; align-items: center; z-index: 100;
-            transition: opacity 0.3s ease;
-        }
-        .login-card {
-            background: var(--chat-bg); padding: 2rem; border-radius: var(--radius);
-            width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid var(--border); text-align: center;
-        }
-        .login-card h1 { margin-bottom: 0.5rem; font-size: 1.5rem; color: var(--primary); }
-        .login-card p { color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
-        .form-group { margin-bottom: 1rem; text-align: left; }
-        .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); }
-        .input-row { display: flex; gap: 10px; }
-        input[type="text"] {
-            width: 100%; padding: 12px; background: var(--bg-color); border: 1px solid var(--border);
-            border-radius: 8px; color: white; font-size: 1rem; outline: none; text-transform: uppercase;
-        }
-        input[type="text"]:focus { border-color: var(--primary); }
-        button { cursor: pointer; border: none; border-radius: 8px; font-weight: 600; transition: 0.2s; }
-        .btn-primary { width: 100%; padding: 12px; background: var(--primary); color: white; font-size: 1rem; }
-        .btn-primary:hover { background: var(--primary-hover); }
-        .btn-small { padding: 5px 10px; font-size: 0.8rem; background: var(--bg-color); color: var(--text-muted); border: 1px solid var(--border); }
-
-        /* CHAT SCREEN */
-        #chat-screen { display: none; flex-direction: column; height: 100%; }
-        header {
-            padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid var(--border);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .room-info h2 { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); }
-        .status-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
-        .status-dot.error { background: var(--danger); }
-        .room-code { font-family: monospace; color: var(--text-muted); font-size: 0.9rem; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
         
-        .btn-leave { background: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 8px 16px; }
-        .btn-leave:hover { background: rgba(239, 68, 68, 0.2); }
-
-        /* MESSAGES */
-        #messages-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
-        .message { max-width: 75%; display: flex; flex-direction: column; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .message.system { align-self: center; color: var(--text-muted); font-size: 0.75rem; margin: 10px 0; text-align: center; background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 20px; }
-        
-        .bubble { padding: 10px 14px; border-radius: 18px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
-        .meta { font-size: 0.7rem; margin-top: 4px; opacity: 0.7; display: flex; align-items: center; gap: 6px; }
-        
-        .message.me { align-self: flex-end; align-items: flex-end; }
-        .message.them { align-self: flex-start; align-items: flex-start; }
-        
-        .me .bubble { background: var(--bubble-me); color: white; border-bottom-right-radius: 4px; }
-        .them .bubble { background: var(--bubble-them); color: var(--text-main); border-bottom-left-radius: 4px; }
-
-        /* INPUT */
-        #input-area { padding: 15px; background: var(--chat-bg); border-top: 1px solid var(--border); display: flex; gap: 10px; }
-        #message-input {
-            flex: 1; background: var(--bg-color); border: 1px solid var(--border);
-            border-radius: 25px; padding: 12px 20px; color: white; outline: none;
+        body { 
+            background-color: var(--bg-dark); 
+            color: var(--text-main); 
+            height: 100vh; 
+            display: flex; 
+            overflow: hidden;
+            font-size: 14px;
         }
-        #message-input:disabled { opacity: 0.5; cursor: not-allowed; }
-        #send-btn {
-            width: 45px; height: 45px; border-radius: 50%; background: var(--primary);
-            color: white; display: flex; justify-content: center; align-items: center; font-size: 1.2rem;
-        }
-        #send-btn:disabled { background: var(--text-muted); cursor: not-allowed; }
 
+        /* --- LOGIN OVERLAY --- */
+        #login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .login-box {
+            background: var(--sidebar-bg); padding: 30px; border-radius: 8px;
+            width: 300px; text-align: center; border: 1px solid var(--border);
+        }
+        .login-box input {
+            width: 100%; padding: 10px; margin: 10px 0; background: var(--input-bg);
+            border: 1px solid var(--border); color: white; border-radius: 4px;
+        }
+        .btn-enter {
+            width: 100%; padding: 10px; background: var(--accent); color: white;
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+        }
+
+        /* --- LAYOUT UTAMA --- */
+        
+        /* 1. SIDEBAR (KIRI) */
+        .sidebar {
+            width: 250px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            font-weight: bold;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        .user-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .user-item {
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .user-item:hover { background-color: rgba(255,255,255,0.05); }
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--input-bg); display: flex;
+            align-items: center; justify-content: center; font-size: 0.8rem;
+        }
+        .user-status {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-muted); margin-left: auto;
+        }
+        .user-status.online { background: var(--online-green); }
+
+        /* 2. MAIN CONTENT (KANAN) */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-dark);
+            position: relative;
+        }
+
+        /* HEADER (MIRIP GAMBAR) */
+        .chat-header {
+            height: 50px;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        .room-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .room-id {
+            font-weight: normal;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        .btn-exit {
+            background-color: var(--exit-red);
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn-exit:hover { background-color: #c82333; }
+
+        /* CHAT AREA */
+        #messages-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .msg-row { display: flex; gap: 10px; animation: popIn 0.2s ease; }
+        @keyframes popIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .msg-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: #444; display: flex; align-items: center;
+            justify-content: center; font-size: 0.9rem; flex-shrink: 0;
+            font-weight: bold; color: #fff;
+        }
+        .msg-content { max-width: 70%; }
+        .msg-name { font-size: 0.85rem; font-weight: bold; margin-bottom: 2px; color: var(--text-muted); }
+        .msg-bubble {
+            background-color: var(--sidebar-bg);
+            padding: 10px 14px;
+            border-radius: 12px;
+            border-top-left-radius: 0;
+            line-height: 1.4;
+            word-wrap: break-word;
+            border: 1px solid var(--border);
+        }
+        .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-align: right; display: block;}
+
+        /* Style untuk pesan sendiri (Kanan) */
+        .msg-row.me { flex-direction: row-reverse; }
+        .msg-row.me .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
+        .msg-row.me .msg-name { display: none; } /* Sembunyikan nama sendiri */
+        .msg-row.me .msg-bubble {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-top-right-radius: 0;
+            border-top-left-radius: 12px;
+        }
+
+        /* INPUT AREA */
+        .chat-input-area {
+            padding: 15px 20px;
+            background-color: var(--header-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+        .chat-input {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: var(--input-bg);
+            border: 1px solid transparent;
+            border-radius: 20px;
+            color: white;
+            outline: none;
+        }
+        .chat-input:focus { border-color: var(--text-muted); }
+        
+        .btn-send {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-send:disabled { background-color: var(--text-muted); cursor: not-allowed; }
+
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .sidebar { display: none; } /* Sembunyikan sidebar di HP agar chat lega */
+            .chat-header { padding: 0 10px; }
+            .room-title { font-size: 1rem; }
+        }
+
+        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
     </style>
 </head>
 <body>
 
-    <!-- LOGIN SCREEN -->
-    <section id="login-screen">
-        <div class="login-card">
-            <h1>AnonChat Global</h1>
-            <p>Chat antar perangkat (HP/Laptop) tanpa server pribadi.</p>
-            
-            <div class="form-group">
-                <label>Nama Samaran (Opsional)</label>
-                <input type="text" id="username" placeholder="Tamu #888" maxlength="12">
-            </div>
-
-            <div class="form-group">
-                <label>Kode Room (Wajib Sama)</label>
-                <div class="input-row">
-                    <input type="text" id="room-id" placeholder="Rahasia123" maxlength="12">
-                    <button class="btn-small" id="random-room-btn" title="Acak">🎲</button>
-                </div>
-            </div>
-
-            <button class="btn-primary" id="join-btn">MASUK ROOM</button>
-            <p style="margin-top:15px; font-size:0.7rem; color:#64748b;">
-                💡 Tips: Gunakan kode rumit agar privasi aman di server publik.
-            </p>
+    <!-- LOGIN -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2 style="margin-bottom: 15px; color: white;">JOIN ROOM</h2>
+            <input type="text" id="username" placeholder="Username..." maxlength="12">
+            <input type="text" id="roomid" placeholder="Room ID (e.g., A-111)" maxlength="10">
+            <button class="btn-enter" onclick="joinApp()">MASUK</button>
         </div>
-    </section>
+    </div>
 
-    <!-- CHAT SCREEN -->
-    <section id="chat-screen">
-        <header>
-            <div class="room-info">
-                <h2>
-                    <span class="status-dot" id="connection-status"></span>
-                    Room <span class="room-code" id="display-room-id">---</span>
-                </h2>
+    <!-- SIDEBAR USERS -->
+    <aside class="sidebar">
+        <div class="sidebar-header">Users Online</div>
+        <div class="user-list" id="user-list">
+            <!-- User list generated here -->
+        </div>
+    </aside>
+
+    <!-- MAIN CHAT -->
+    <main class="main-content">
+        <header class="chat-header">
+            <div>
+                <span class="room-title">Room </span>
+                <span class="room-id" id="display-room-id">---</span>
             </div>
-            <button class="btn-leave" id="leave-btn">KELUAR</button>
+            <button class="btn-exit" onclick="location.reload()">EXIT</button>
         </header>
 
-        <div id="messages-container">
-            <div class="message system">Menunggu koneksi ke server...</div>
+        <div id="messages-area">
+            <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
+                Selamat datang di Room. Gunakan bahasa yang sopan.
+            </div>
         </div>
 
-        <div id="input-area">
-            <input type="text" id="message-input" placeholder="Ketik pesan..." autocomplete="off" disabled>
-            <button id="send-btn" disabled>➤</button>
+        <div class="chat-input-area">
+            <div class="input-wrapper">
+                <input type="text" class="chat-input" id="message-input" placeholder="Ketik pesan..." autocomplete="off">
+            </div>
+            <button class="btn-send" id="send-btn" onclick="sendMessage()">Send</button>
         </div>
-    </section>
+    </main>
 
     <script>
-        // --- KONFIGURASI MQTT (Public Broker) ---
-        // Kita menggunakan broker publik gratis untuk demo tanpa backend sendiri.
-        const MQTT_BROKER_HOST = "broker.emqx.io";
-        const MQTT_BROKER_PORT = 8084; // Port SSL/WSS (aman untuk HTTPS)
+        // --- CONFIGURATION ---
+        const MQTT_HOST = "broker.emqx.io";
+        const MQTT_PORT = 8084;
         
         let client = null;
         let isConnected = false;
-        let currentRoom = "";
         let currentUser = "";
+        let currentRoom = "";
+        
+        // Set untuk menyimpan daftar user unik
+        let knownUsers = new Set();
+        let userColors = {}; // Mapping user -> warna avatar
 
-        // DOM Elements
-        const loginScreen = document.getElementById('login-screen');
-        const chatScreen = document.getElementById('chat-screen');
-        const usernameInput = document.getElementById('username');
-        const roomIdInput = document.getElementById('room-id');
-        const messagesContainer = document.getElementById('messages-container');
-        const messageInput = document.getElementById('message-input');
-        const sendBtn = document.getElementById('send-btn');
+        // DOM
         const displayRoomId = document.getElementById('display-room-id');
-        const statusDot = document.getElementById('connection-status');
+        const messagesArea = document.getElementById('messages-area');
+        const messageInput = document.getElementById('message-input');
+        const userListEl = document.getElementById('user-list');
+        const sendBtn = document.getElementById('send-btn');
 
-        // --- FUNGSI UTAMA ---
-
-        function generateRandomId(length = 6) {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let result = '';
-            for (let i = 0; i < length; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-            return result;
+        // Helper Warna Random
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
         }
 
-        function getTimestamp() {
-            return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
+        function joinApp() {
+            const user = document.getElementById('username').value.trim();
+            const room = document.getElementById('roomid').value.trim().toUpperCase();
 
-        function scrollToBottom() {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+            if(!user || !room) { alert("Isi username dan room ID!"); return; }
 
-        // --- MQTT LOGIC ---
+            currentUser = user;
+            currentRoom = room;
 
-        function connectToMQTT() {
-            updateStatus('connecting');
+            document.getElementById('login-overlay').style.display = 'none';
+            displayRoomId.textContent = currentRoom;
+
+            // Tambahkan diri sendiri ke user list
+            addUserToList(currentUser, true);
             
-            // Buat Client ID unik agar tidak tertolak oleh broker
-            const clientId = "anonchat_client_" + Math.random().toString(16).substr(2, 8);
-            
-            client = new Paho.MQTT.Client(MQTT_BROKER_HOST, MQTT_BROKER_PORT, clientId);
+            // Koneksi MQTT
+            connectMQTT();
+        }
+
+        function connectMQTT() {
+            const clientId = "chat_" + Math.random().toString(16).substr(2, 8);
+            client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
             client.onMessageArrived = onMessageArrived;
 
-            const options = {
-                useSSL: true, // Wajib true untuk port 8084
+            client.connect({
+                useSSL: true, 
                 timeout: 3,
                 onSuccess: onConnect,
                 onFailure: onFailure
-            };
-
-            try {
-                client.connect(options);
-            } catch (error) {
-                console.error("MQTT Connect Error:", error);
-                onFailure({ errorMessage: error.message });
-            }
+            });
         }
 
         function onConnect() {
-            console.log("MQTT Connected");
             isConnected = true;
-            updateStatus('connected');
-            
-            // Masuk ke room
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
             
-            // Kirim notifikasi join (opsional)
-            publishSystemMessage(`${currentUser} bergabung.`);
+            // Kirim pesan "join" untuk memberi tahu orang lain
+            const joinMsg = {
+                type: 'join',
+                user: currentUser,
+                text: 'telah bergabung',
+                time: new Date().toLocaleTimeString()
+            };
+            client.send(new Paho.MQTT.Message(JSON.stringify(joinMsg), topic));
             
-            // Aktifkan UI
             messageInput.disabled = false;
             sendBtn.disabled = false;
-            messageInput.focus();
-            
-            renderSystemMessage("Terhubung! Anda sekarang bisa mengirim pesan.");
         }
 
-        function onFailure(responseObject) {
-            console.log("Connection failed: " + responseObject.errorMessage);
+        function onFailure() {
+            alert("Gagal terhubung ke server internet.");
+        }
+
+        function onConnectionLost() {
             isConnected = false;
-            updateStatus('error');
-            renderSystemMessage("Gagal terhubung ke server. Cek koneksi internet Anda.");
-        }
-
-        function onConnectionLost(responseObject) {
-            if (responseObject.errorCode !== 0) {
-                console.log("Connection lost: " + responseObject.errorMessage);
-                isConnected = false;
-                updateStatus('error');
-                messageInput.disabled = true;
-                sendBtn.disabled = true;
-                renderSystemMessage("Koneksi terputus. Menunggu reconnect...");
-            }
+            alert("Koneksi terputus.");
         }
 
         function onMessageArrived(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
-                // Jangan tampilkan pesan sistem sendiri
-                if(payload.type !== 'system' || payload.user !== currentUser) {
-                    renderMessage(payload.text, payload.user, payload.time, payload.user === currentUser, payload.type);
+                
+                // Jika type join, tambahkan ke list user
+                if (payload.type === 'join') {
+                    addUserToList(payload.user, false);
+                    renderSystemMessage(`${payload.user} bergabung.`);
+                } else {
+                    // Pesan chat biasa
+                    renderChatMessage(payload.user, payload.text, payload.time, false);
+                    addUserToList(payload.user, false); // Pastikan user ada di list jika kirim pesan
                 }
-            } catch (e) {
-                console.error("Error parsing message", e);
-            }
-        }
-
-        function publishMessage(text) {
-            if (!isConnected || !client) return;
-
-            const topic = "anonchat/room/" + currentRoom;
-            const message = new Paho.MQTT.Message(JSON.stringify({
-                type: 'chat',
-                user: currentUser,
-                text: text,
-                time: getTimestamp()
-            }));
-            message.destinationName = topic;
-            client.send(message);
-        }
-
-        function publishSystemMessage(text) {
-            // Pesan sistem tidak ditampilkan di layar pengirim (hanya untuk orang lain)
-            // Tapi untuk demo sederhana, kita kirim saja
-            if (!isConnected || !client) return;
-            const topic = "anonchat/room/" + currentRoom;
-            const message = new Paho.MQTT.Message(JSON.stringify({
-                type: 'system',
-                user: currentUser, // Pengirim sistem
-                text: text,
-                time: getTimestamp()
-            }));
-            message.destinationName = topic;
-            client.send(message);
-        }
-
-        // --- UI ACTIONS ---
-
-        function joinRoom() {
-            const room = roomIdInput.value.trim().replace(/[^a-zA-Z0-9]/g, ''); // Hapus karakter aneh untuk keamanan topik
-            const user = usernameInput.value.trim();
-
-            if (!room) { alert("Masukkan Kode Room!"); return; }
-            
-            currentUser = user || `User_${Math.floor(Math.random()*1000)}`;
-            currentRoom = room;
-
-            // Transisi UI
-            loginScreen.style.opacity = '0';
-            setTimeout(() => {
-                loginScreen.style.display = 'none';
-                chatScreen.style.display = 'flex';
-                displayRoomId.textContent = currentRoom;
-            }, 300);
-
-            // Mulai koneksi MQTT
-            connectToMQTT();
-        }
-
-        function leaveRoom() {
-            if (client && isConnected) {
-                try {
-                    client.disconnect();
-                } catch(e) {}
-            }
-            // Reload page untuk reset bersih
-            location.reload(); 
+            } catch(e) { console.error(e); }
         }
 
         function sendMessage() {
             const text = messageInput.value.trim();
-            if (!text || !isConnected) return;
+            if(!text || !isConnected) return;
 
-            // 1. Render local
-            renderMessage(text, currentUser, getTimestamp(), true, 'chat');
+            const topic = "anonchat/room/" + currentRoom;
+            const msg = {
+                type: 'chat',
+                user: currentUser,
+                text: text,
+                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            };
 
-            // 2. Send via MQTT
-            publishMessage(text);
+            // Kirim
+            client.send(new Paho.MQTT.Message(JSON.stringify(msg), topic));
 
-            messageInput.value = '';
-            messageInput.focus();
+            // Render Local
+            renderChatMessage(currentUser, text, msg.time, true);
+            messageInput.value = "";
         }
 
-        // --- RENDERERS ---
+        // --- UI RENDERERS ---
 
-        function updateStatus(state) {
-            statusDot.className = 'status-dot'; // reset
-            if (state === 'connected') {
-                statusDot.classList.add('connected');
-                document.querySelector('.room-info h2').title = "Terhubung ke Server";
-            } else if (state === 'connecting') {
-                statusDot.style.backgroundColor = '#fbbf24'; // Kuning
-                document.querySelector('.room-info h2').title = "Menghubungkan...";
-            } else {
-                statusDot.classList.add('error');
-                document.querySelector('.room-info h2').title = "Terputus";
-            }
-        }
+        function addUserToList(username, isMe) {
+            // Jika sudah ada, jangan tambah lagi
+            if (knownUsers.has(username)) return;
 
-        function renderMessage(text, user, time, isMe, type) {
-            const div = document.createElement('div');
+            knownUsers.add(username);
             
-            if (type === 'system') {
-                div.className = 'message system';
-                div.textContent = text;
-            } else {
-                div.className = `message ${isMe ? 'me' : 'them'}`;
-                const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                div.innerHTML = `
-                    <div class="bubble">${safeText}</div>
-                    <div class="meta">
-                        <span>${isMe ? 'Anda' : user}</span>
-                        <span>•</span>
-                        <span>${time}</span>
-                    </div>
-                `;
-            }
-            messagesContainer.appendChild(div);
-            scrollToBottom();
+            // Tentukan warna avatar (User hijau/putih, Orang lain acak)
+            let avatarColor = isMe ? '#2d88ff' : getRandomColor();
+            if (username === 'System') avatarColor = '#555';
+
+            userColors[username] = avatarColor;
+
+            const div = document.createElement('div');
+            div.className = 'user-item';
+            div.id = 'user-' + username;
+            div.innerHTML = `
+                <div class="user-avatar" style="background: ${avatarColor}">${username.substring(0,2).toUpperCase()}</div>
+                <span>${username}</span>
+                <div class="user-status online"></div>
+            `;
+            userListEl.appendChild(div);
+        }
+
+        function renderChatMessage(user, text, time, isMe) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+            
+            // Ambil warna avatar dari user
+            const avatarColor = userColors[user] || '#777';
+            const initial = user.substring(0,2).toUpperCase();
+
+            // Sanitasi teks
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            row.innerHTML = `
+                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
+                <div class="msg-content">
+                    <div class="msg-name">${user}</div>
+                    <div class="msg-bubble">${safeText}</div>
+                    <span class="msg-time">${time}</span>
+                </div>
+            `;
+
+            messagesArea.appendChild(row);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
         function renderSystemMessage(text) {
-            renderMessage(text, null, null, false, 'system');
+            const div = document.createElement('div');
+            div.style.textAlign = 'center';
+            div.style.fontSize = '0.75rem';
+            div.style.color = '#777';
+            div.style.margin = '10px 0';
+            div.textContent = text;
+            messagesArea.appendChild(div);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
-        // --- EVENT LISTENERS ---
-        document.getElementById('join-btn').addEventListener('click', joinRoom);
-        document.getElementById('leave-btn').addEventListener('click', leaveRoom);
-        document.getElementById('send-btn').addEventListener('click', sendMessage);
-        
-        messageInput.addEventListener('keypress', (e) => {
+        // Enter key support
+        messageInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') sendMessage();
         });
 
-        document.getElementById('random-room-btn').addEventListener('click', () => {
-            roomIdInput.value = generateRandomId();
-        });
-
-        // Setup awal
-        roomIdInput.value = generateRandomId();
+        // Random room ID init
+        document.getElementById('roomid').value = "A-" + Math.floor(100 + Math.random() * 900);
 
     </script>
 </body>
