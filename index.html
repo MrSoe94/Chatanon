@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Host Controlled Room</title>
+    <title>Realtime Sync Host Room</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
@@ -84,7 +84,7 @@
         }
         .user-info { flex:1; }
         .user-name { font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 5px;}
-        .host-badge { color: var(--host-gold); font-size: 1rem; } /* Mahkota */
+        .host-badge { color: var(--host-gold); font-size: 1rem; }
         .user-status-text { font-size: 0.75rem; color: var(--online-green); }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--online-green); }
 
@@ -112,7 +112,6 @@
         .room-title { font-weight: bold; font-size: 1.1rem; }
         .room-id { font-weight: normal; color: var(--text-muted); font-size: 0.9rem; font-family: monospace; }
         
-        /* TIMER CONTROLS */
         .timer-controls {
             margin-top: 4px;
             display: flex;
@@ -120,10 +119,9 @@
             align-items: center;
             transition: opacity 0.3s;
         }
-        /* Class untuk menonaktifkan timer secara visual */
         .timer-controls.disabled {
             opacity: 0.4;
-            pointer-events: none; /* Tidak bisa diklik */
+            pointer-events: none;
             filter: grayscale(1);
         }
 
@@ -311,7 +309,7 @@
 
         <div id="messages-area">
             <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-                Selamat datang. Hanya Host (User pertama) yang bisa mengatur timer.
+                Selamat datang. Timer disinkronkan oleh Host.
             </div>
         </div>
 
@@ -344,6 +342,7 @@
         // Timer Variables
         let timerInterval = null;
         let timerEndTime = null;
+        let timerRunning = false;
 
         // DOM
         const displayRoomId = document.getElementById('display-room-id');
@@ -358,7 +357,7 @@
         const timerWatermark = document.getElementById('timer-watermark');
         const timerInput = document.getElementById('timer-minutes');
         const btnSetTimer = document.getElementById('btn-set-timer');
-        const timerControls = document.getElementById('timer-controls'); // Container untuk disable
+        const timerControls = document.getElementById('timer-controls'); 
         const expiredOverlay = document.getElementById('expired-overlay');
 
         // --- CORE FUNCTIONS ---
@@ -382,7 +381,7 @@
 
         function startConnection() {
             updateStatus('connecting');
-            const clientId = "chat_host_" + Math.random().toString(16).substr(2, 8);
+            const clientId = "chat_sync_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
@@ -406,11 +405,7 @@
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
 
-            // 1. Kirim pesan Join biasa
             publishMessage({ type: 'join', user: currentUser });
-            
-            // 2. TANYA: "Siapa Host?"
-            // Kita beri waktu 1.5 detik bagi Host yang sudah ada untuk menjawab.
             checkHostElection();
             
             messageInput.disabled = false;
@@ -418,16 +413,11 @@
             messageInput.focus();
         }
 
-        // --- HOST ELECTION LOGIC ---
+        // --- HOST ELECTION ---
 
         function checkHostElection() {
-            // Kirim pertanyaan
             publishMessage({ type: 'host_query', user: currentUser });
-            
-            // Tunggu jawaban...
             hostCheckTimeout = setTimeout(() => {
-                // Jika 1.5 detik tidak ada yang menjawab "I am Host", berarti ROOM KOSONG.
-                // Saya jadi Host!
                 becomeHost();
             }, 1500);
         }
@@ -435,38 +425,22 @@
         function becomeHost() {
             isHost = true;
             currentHost = currentUser;
-            
-            console.log("I am the Host");
-            
-            // Enable UI Timer
             timerControls.classList.remove('disabled');
             timerInput.disabled = false;
             btnSetTimer.disabled = false;
-
-            renderSystemMessage("Anda adalah HOST Room ini. Anda bisa mengatur timer.");
-            
-            // Broadcast ke semua: "Saya Host!"
+            renderSystemMessage("Anda adalah HOST. Mengatur waktu.");
             publishMessage({ type: 'announce_host', user: currentUser });
-
-            // Update Sidebar (Sendiri)
             updateUserListHostBadge(currentUser, true);
         }
 
         function becomeGuest(hostName) {
             isHost = false;
             currentHost = hostName;
-            
-            console.log("Guest mode. Host is: " + hostName);
-
-            // Disable UI Timer
             timerControls.classList.add('disabled');
             timerInput.disabled = true;
             btnSetTimer.disabled = true;
             timerInput.placeholder = "Host Only";
-
-            renderSystemMessage(`Host Room saat ini: ${hostName}. Hanya host yang bisa set timer.`);
-
-            // Update Sidebar
+            renderSystemMessage(`Host: ${hostName}.`);
             updateUserListHostBadge(hostName, true);
         }
 
@@ -503,59 +477,47 @@
                 const payload = JSON.parse(message.payloadString);
                 if (payload.user === currentUser) return;
 
-                // 1. HOST PROTOCOLS
+                // 1. HOST PROTOCOL
                 if (payload.type === 'host_query') {
-                    // Jika saya Host, dan ada orang baru nanya "Siapa host?", jawab segera!
-                    if (isHost) {
-                        publishMessage({ type: 'announce_host', user: currentUser });
-                    }
+                    if (isHost) publishMessage({ type: 'announce_host', user: currentUser });
                 }
                 else if (payload.type === 'announce_host') {
-                    // Ada orang mengklaim host. 
-                    // Hentikan timeout saya, karena saya tahu sekarang saya bukan host (atau host yang lain).
                     clearTimeout(hostCheckTimeout);
-                    
-                    // Jika saya belum jadi host (karena menunggu timeout), jadilah guest.
-                    if (!isHost && currentHost !== payload.user) {
-                        becomeGuest(payload.user);
-                    }
-                    
-                    // Update UI badge di sidebar
+                    if (!isHost && currentHost !== payload.user) becomeGuest(payload.user);
                     updateUserListHostBadge(payload.user, true);
                 }
 
-                // 2. TIMER MESSAGES
+                // 2. TIMER PROTOCOL (SYNC LOGIC BARU)
                 else if (payload.type === 'timer_start') {
-                    syncTimer(payload.endTime);
-                } else if (payload.type === 'timer_end') {
+                    startSyncTimer(payload.endTime);
+                }
+                else if (payload.type === 'timer_tick') {
+                    // Guest menerima update waktu dari Host
+                    updateTimerUI(payload.remaining, true); // true = force update
+                }
+                else if (payload.type === 'timer_end') {
                     forceKickout();
                 }
 
-                // 3. PRESENCE MESSAGES
+                // 3. PRESENCE
                 else if (payload.type === 'join') {
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
                     
-                    // Handshake & Sync Timer if running
                     const presenceMsg = { type: 'presence', user: currentUser };
                     publishMessage(presenceMsg);
                     
-                    // Jika Host dan timer jalan, kirim ulang info timer
-                    if(isHost && timerEndTime) {
-                        publishMessage({ type: 'timer_start', endTime: timerEndTime });
+                    // Jika Host dan timer jalan, kirim status terbaru ke user baru
+                    if(isHost && timerRunning) {
+                        const remaining = timerEndTime - Date.now();
+                        publishMessage({ type: 'timer_tick', remaining: remaining > 0 ? remaining : 0 });
                     }
-                }
-                else if (payload.type === 'presence') {
-                    updateActiveUser(payload.user, true);
                 }
                 else if (payload.type === 'leave') {
                     updateActiveUser(payload.user, false);
-                    
-                    // Jika Host yang keluar
                     if (payload.user === currentHost) {
-                        currentHost = ""; // Host hilang
-                        renderSystemMessage("Host telah keluar room.");
-                        // Disable timer controls untuk semua sisanya (kebijakan sederhana)
+                        currentHost = "";
+                        renderSystemMessage("Host keluar.");
                         timerControls.classList.add('disabled');
                         timerInput.disabled = true;
                         btnSetTimer.disabled = true;
@@ -570,65 +532,69 @@
             } catch(e) { console.error(e); }
         }
 
-        // --- TIMER LOGIC ---
+        // --- TIMER LOGIC (REVAMPED) ---
 
         function setTimer() {
-            // Cek apakah host
-            if (!isHost) {
-                alert("Hanya Host yang bisa mengatur timer!");
-                return;
-            }
-
+            if (!isHost) return;
             const mins = parseInt(timerInput.value);
-            if(!mins || mins <= 0) { alert("Masukkan menit yang valid"); return; }
+            if(!mins || mins <= 0) return;
 
             const durationMs = mins * 60 * 1000;
             const endTime = Date.now() + durationMs;
 
-            // Broadcast start
             publishMessage({ type: 'timer_start', endTime: endTime });
-            
-            // Start locally
-            syncTimer(endTime);
+            startSyncTimer(endTime);
         }
 
-        function syncTimer(endTime) {
-            clearInterval(timerInterval);
+        function startSyncTimer(endTime) {
+            // Bersihkan timer lama
+            if(timerInterval) clearInterval(timerInterval);
+            
+            timerRunning = true;
             timerEndTime = endTime;
             
-            // UI Update
             timerWatermark.style.display = 'block';
             btnSetTimer.textContent = "⏹ Stop/Reset";
             btnSetTimer.classList.add('active');
 
+            // Loop Utama
             timerInterval = setInterval(() => {
                 const now = Date.now();
-                const diff = endTime - now;
+                const remaining = timerEndTime - now;
 
-                if (diff <= 0) {
+                if (remaining <= 0) {
+                    // Waktu Habis
                     clearInterval(timerInterval);
-                    timerWatermark.textContent = "00:00";
-                    // Broadcast Time's Up (Hanya Host yang boleh trigger ini, tapi untuk keamanan kita biarkan siapa saja jika ter-sync)
-                    // Idealnya Host yang mengirim end, tapi jika Host putus, timer akan jalan sendiri di client.
-                    // Untuk memaksa kick bersama, Host harus kirim timer_end.
-                    if(isHost) publishMessage({ type: 'timer_end' });
+                    updateTimerUI(0);
                     
+                    if (isHost) {
+                        // Host yang mengumumkan habis
+                        publishMessage({ type: 'timer_end' });
+                    }
                     forceKickout();
                 } else {
-                    updateTimerUI(diff);
+                    // Masih jalan
+                    updateTimerUI(remaining);
+                    
+                    // --- LOGIKA HEARTBEAT SYNC ---
+                    // Jika Saya Host, kirim waktu tersisa setiap 1 detik agar semua tamu sinkron
+                    if (isHost) {
+                        publishMessage({ type: 'timer_tick', remaining: remaining });
+                    }
                 }
             }, 1000);
         }
 
-        function updateTimerUI(ms) {
-            const totalSeconds = Math.floor(ms / 1000);
+        function updateTimerUI(ms, forceSync = false) {
+            // Konversi ms ke menit:detik
+            const totalSeconds = Math.ceil(ms / 1000); // Pembulatan ke atas
             const m = Math.floor(totalSeconds / 60);
             const s = totalSeconds % 60;
             const timeString = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             
             timerWatermark.textContent = timeString;
             
-            if(totalSeconds < 30) {
+            if(totalSeconds <= 30) {
                 timerWatermark.classList.add('urgent');
             } else {
                 timerWatermark.classList.remove('urgent');
@@ -637,7 +603,7 @@
 
         function forceKickout() {
             expiredOverlay.style.display = 'flex';
-            clearInterval(timerInterval);
+            if(timerInterval) clearInterval(timerInterval);
             if(client) try { client.disconnect(); } catch(e){}
             setTimeout(() => { location.reload(); }, 3000);
         }
