@@ -1036,13 +1036,14 @@
                     callback(elem.toDataURL('image/jpeg', quality));
                 };
             };
+            reader.readAsDataURL(file);
         }
-
-        // --- MESSAGE HANDLING ---
 
         function onMessageArrived(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
+                console.log('Received message:', payload); // Debug log
+                
                 if (payload.user === currentUser) return;
 
                 // 1. HOST PROTOCOL
@@ -1062,6 +1063,7 @@
 
                 // 3. CONTENT PROTOCOLS
                 else if (payload.type === 'chat') {
+                    console.log('Rendering chat message:', payload); // Debug log
                     // Store message in history for reply functionality (only if it has an id)
                     if (payload.id) {
                         messageHistory[payload.id] = payload;
@@ -1069,6 +1071,7 @@
                     renderChatMessage(payload.user, payload.text, payload.time, false, payload.replyTo);
                 }
                 else if (payload.type === 'reply') {
+                    console.log('Rendering reply message:', payload); // Debug log
                     // Store message in history for reply functionality
                     if (payload.id) {
                         messageHistory[payload.id] = payload;
@@ -1116,7 +1119,6 @@
         }
 
         // --- STICKER LOGIC ---
-
         function generateStickerGrid() {
             stickers.forEach(sticker => {
                 const div = document.createElement('div');
@@ -1280,6 +1282,7 @@
                 msg.replyTo = replyToMessage;
             }
             
+            console.log('Sending message:', msg); // Debug log
             publishMessage(msg);
             renderChatMessage(currentUser, text, msg.time, true, replyToMessage);
             
@@ -1316,7 +1319,7 @@
                     ${quotedMessageHTML}
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${time}</span>
-                    <button class="reply-button" onclick="startReply(${JSON.stringify(replyTo).replace(/"/g, '&quot;')})">Reply</button>
+                    <button class="reply-button" onclick="startReply(${JSON.stringify({id: messageIdCounter, user: user, text: text}).replace(/"/g, '&quot;')})">Reply</button>
                 </div>
             `;
             messagesArea.appendChild(row);
@@ -1726,6 +1729,15 @@
         document.addEventListener('click', (e) => {
             if (!mentionSuggestionsEl.contains(e.target) && e.target !== messageInput) {
                 hideMentionSuggestions();
+            }
+        });
+
+        // Close private chat modal when clicking outside
+        document.addEventListener('click', (e) => {
+            if (privateChatModal.style.display === 'flex' && 
+                !privateChatModal.contains(e.target) && 
+                !e.target.closest('.private-chat-btn')) {
+                closePrivateChat();
             }
         });
 
