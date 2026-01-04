@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Private Chat Anonymous</title>
+    <title>Private Chat Anonymous (Enter Support)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
@@ -242,7 +242,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            background-color: var(--bubble-them); /* Fallback */
+            background-color: var(--bubble-them);
             padding: 15px;
             min-width: 250px;
             text-decoration: none;
@@ -250,7 +250,7 @@
         }
         .msg-row.me .file-bubble {
             background-color: var(--bubble-me);
-            flex-direction: row-reverse; /* Icon on right for own msg */
+            flex-direction: row-reverse;
         }
         .file-icon {
             font-size: 2.5rem;
@@ -398,8 +398,9 @@
     <div id="login-overlay">
         <div class="login-box">
             <h2>CREATE/JOIN ROOM</h2>
-            <input type="text" id="username" placeholder="Username..." maxlength="12">
-            <input type="text" id="roomid" placeholder="Room ID" maxlength="10">
+            <!-- ONKEYPRESS DI TAMBAHKAN DI SINI -->
+            <input type="text" id="username" placeholder="Username..." maxlength="12" onkeypress="if(event.key==='Enter') joinApp()">
+            <input type="text" id="roomid" placeholder="Room ID" maxlength="10" onkeypress="if(event.key==='Enter') joinApp()">
             <button class="btn-enter" onclick="joinApp()">MASUK</button>
         </div>
     </div>
@@ -460,7 +461,8 @@
             <button class="action-btn" id="sticker-btn" title="Stiker">😀</button>
             
             <div class="input-wrapper">
-                <input type="text" class="chat-input" id="message-input" placeholder="Ketik pesan..." autocomplete="off">
+                <!-- ONKEYPRESS DI TAMBAHKAN DI SINI -->
+                <input type="text" class="chat-input" id="message-input" placeholder="Ketik pesan..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMessage()">
             </div>
             <button class="btn-send" id="send-btn" onclick="sendMessage()">Send</button>
         </div>
@@ -1041,7 +1043,6 @@
             messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
-        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
         document.getElementById('roomid').value = "A-" + Math.floor(100 + Math.random() * 900);
 
     </script>
