@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Private Chat Anonymous (Enter Support)</title>
+    <title>Private Chat Anonymous</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
@@ -497,7 +497,12 @@
             '🤔', '😡', '👋', '🙏', '🤡', '🤖', '👻', '🐱', '🐶', '🦄',
             '🎅', '🎃', '💩', '🚀', '💣', '🎵', '🥊', '🤝', '🆘', '💀',
             '😎', '🥶', '🥵', '🤯', '🥴', '🤢', '🤮', '🤧', '🥺', '😵',
-            '🤑', '🤠', '🤥', '🤫', '🤭', '🧐', '🤓', '😈', '👿', '👹'
+            '🤑', '🤠', '🤥', '🤫', '🤭', '🧐', '🤓', '😈', '👿', '👹',
+            '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮',
+            '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉',
+            '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞',
+            '🐜', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖',
+            '🦕', '🐙', '🦑', '🦐', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳'
         ];
 
         // DOM
@@ -527,12 +532,29 @@
 
         // --- CORE FUNCTIONS ---
 
+        function generateRandomUsername() {
+            const adjectives = ['Cepot', 'Bagong', 'Semar', 'Petruk', 'Gareng', 'Unyil', 'Ujang', 'Kabayan', 'Jaka', 'Lutung'];
+            const nouns = ['Tingkir', 'Kasarung', 'Sasmita', 'Wibawa', 'Perkasa', 'Jaya', 'Makmur', 'Sejahtera', 'Bahagia', 'Mandiri'];
+            const numbers = Math.floor(Math.random() * 999) + 1;
+            
+            const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const noun = nouns[Math.floor(Math.random() * nouns.length)];
+            
+            return `${adjective}${noun}${numbers}`;
+        }
+
         function joinApp() {
-            const user = document.getElementById('username').value.trim();
+            let user = document.getElementById('username').value.trim();
             const room = document.getElementById('roomid').value.trim().toUpperCase();
 
-            if(!user || !room) { alert("Isi semua kolom!"); return; }
-            if(user.length > 15) { alert("Username terlalu panjang"); return; }
+            if(!room) { alert("Room ID harus diisi!"); return; }
+            
+            if(!user) { 
+                user = generateRandomUsername();
+                document.getElementById('username').value = user;
+            }
+            
+            if(user.length > 25) { alert("Username terlalu panjang"); return; }
 
             currentUser = user;
             currentRoom = room;
