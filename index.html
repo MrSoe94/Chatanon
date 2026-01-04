@@ -3,28 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Private Chat Anonim</title>
+    <title>WA Style Chat - Sticker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
         :root {
-            --bg-dark: #18191a;
-            --sidebar-bg: #242526;
-            --header-bg: #242526;
-            --input-bg: #3a3b3c;
-            --text-main: #e4e6eb;
-            --text-muted: #b0b3b8;
-            --accent: #2d88ff;
+            --bg-dark: #0b141a; /* Lebih gelap seperti WA Dark */
+            --sidebar-bg: #111b21;
+            --header-bg: #202c33;
+            --input-bg: #2a3942;
+            --text-main: #e9edef;
+            --text-muted: #8696a0;
+            --accent: #00a884;
+            --bubble-me: #005c4b;
+            --bubble-them: #202c33;
             --danger: #dc3545;
-            --online-green: #31a24c;
-            --border: #3e4042;
+            --online-green: #00a884;
+            --border: #222e35;
             --host-gold: #fbbf24;
+            --sticker-panel-bg: #222e35;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
         
         body { 
             background-color: var(--bg-dark); 
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); /* Pattern background halus */
+            background-blend-mode: overlay;
             color: var(--text-main); 
             height: 100vh; 
             display: flex; 
@@ -64,7 +69,7 @@
         }
         .sidebar-header {
             padding: 15px;
-            border-bottom: 1px solid var(--border);
+            background: var(--header-bg);
             font-weight: bold;
             color: var(--text-muted);
             text-transform: uppercase;
@@ -77,9 +82,9 @@
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
         .user-avatar {
-            width: 36px; height: 36px; border-radius: 50%;
+            width: 40px; height: 40px; border-radius: 50%;
             background: var(--input-bg); display: flex;
-            align-items: center; justify-content: center; font-size: 0.9rem;
+            align-items: center; justify-content: center; font-size: 1.1rem;
             font-weight: bold; color: white;
         }
         .user-info { flex:1; }
@@ -92,7 +97,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            background-color: var(--bg-dark);
+            background-color: var(--bg-dark); /* WA Background */
             position: relative;
         }
 
@@ -119,20 +124,10 @@
             align-items: center;
             transition: opacity 0.3s;
         }
-        .timer-controls.disabled {
-            opacity: 0.4;
-            pointer-events: none;
-            filter: grayscale(1);
-        }
-
+        .timer-controls.disabled { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
         .timer-input {
-            width: 50px;
-            background: var(--input-bg);
-            border: 1px solid var(--border);
-            color: white;
-            padding: 2px 5px;
-            border-radius: 4px;
-            text-align: center;
+            width: 50px; background: var(--input-bg); border: 1px solid var(--border);
+            color: white; padding: 2px 5px; border-radius: 4px; text-align: center;
         }
         .btn-timer {
             background: #444; color: white; border: 1px solid #555;
@@ -141,7 +136,6 @@
         .btn-timer.active { background: var(--danger); border-color: var(--danger); }
 
         .header-right { display: flex; align-items: center; gap: 10px; }
-        
         .connection-badge {
             font-size: 0.75rem; padding: 4px 8px; border-radius: 4px;
             background: #333; color: #aaa; display: flex; align-items: center; gap: 6px;
@@ -182,7 +176,7 @@
             position: relative;
         }
         
-        .msg-row { display: flex; gap: 10px; animation: popIn 0.2s ease; }
+        .msg-row { display: flex; gap: 10px; animation: popIn 0.2s ease; width: 100%; }
         @keyframes popIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
         .msg-avatar {
@@ -191,47 +185,116 @@
             justify-content: center; font-size: 0.9rem; flex-shrink: 0;
             font-weight: bold; color: #fff;
         }
-        .msg-content { max-width: 70%; }
+        .msg-content { max-width: 70%; display: flex; flex-direction: column; }
         .msg-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 2px; color: var(--text-muted); }
+        
+        /* Bubble Biasa */
         .msg-bubble {
-            background-color: var(--sidebar-bg);
-            padding: 10px 14px;
-            border-radius: 12px;
+            background-color: var(--bubble-them);
+            padding: 6px 10px 8px 10px;
+            border-radius: 8px;
             border-top-left-radius: 0;
             line-height: 1.4;
             word-wrap: break-word;
-            border: 1px solid var(--border);
+            position: relative;
         }
-        .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-align: right; display: block;}
-
+        /* Bubble Sendiri (WA Style) */
         .msg-row.me { flex-direction: row-reverse; }
-        .msg-row.me .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
+        .msg-row.me .msg-content { align-items: flex-end; }
         .msg-row.me .msg-name { display: none; }
         .msg-row.me .msg-bubble {
-            background-color: var(--accent); color: white; border: none;
-            border-top-right-radius: 0; border-top-left-radius: 12px;
+            background-color: var(--bubble-me);
+            border: none;
+            border-top-right-radius: 0;
+            border-top-left-radius: 8px;
         }
 
-        /* INPUT */
-        .chat-input-area {
-            padding: 15px 20px;
-            background-color: var(--header-bg);
-            border-top: 1px solid var(--border);
-            display: flex; gap: 10px; align-items: center;
-            z-index: 10;
+        /* --- STICKER BUBBLE --- */
+        .sticker-bubble {
+            background: transparent !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            font-size: 80px; /* Ukuran Besar */
+            line-height: 1;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+            cursor: default;
         }
+        /* Stiker WA biasanya ada ceklis kecil di samping, kita abaikan untuk simpel */
+        .sticker-meta {
+            font-size: 0.65rem; color: var(--text-muted); 
+            display: flex; align-items: center; justify-content: flex-end;
+            margin-top: 2px; gap: 3px;
+        }
+
+        .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-align: right; display: block;}
+
+        /* --- INPUT AREA --- */
+        .chat-input-area {
+            padding: 10px 20px;
+            background-color: var(--header-bg);
+            display: flex; gap: 10px; align-items: flex-end; /* Align bottom for multiline */
+            z-index: 10;
+            position: relative;
+        }
+        
         .input-wrapper { flex: 1; position: relative; }
         .chat-input {
             width: 100%; padding: 12px 15px; background-color: var(--input-bg);
-            border: 1px solid transparent; border-radius: 20px; color: white; outline: none;
+            border: 1px solid transparent; border-radius: 8px; color: white; outline: none;
+            max-height: 100px; overflow-y: auto;
         }
         .chat-input:focus { border-color: var(--text-muted); }
         .chat-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Sticker Button */
+        .btn-sticker {
+            background: transparent; border: none; color: var(--text-muted);
+            font-size: 1.5rem; cursor: pointer; padding-bottom: 5px;
+        }
+        .btn-sticker:hover { color: var(--text-main); }
+
         .btn-send {
             background-color: var(--accent); color: white; border: none;
             padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: 600;
         }
         .btn-send:disabled { background-color: var(--text-muted); cursor: not-allowed; }
+
+        /* --- STICKER PANEL (POPUP) --- */
+        #sticker-panel {
+            display: none; /* Hidden by default */
+            position: absolute;
+            bottom: 70px; /* Di atas input area */
+            left: 20px;
+            right: 20px;
+            background-color: var(--sticker-panel-bg);
+            border-radius: 12px 12px 0 0;
+            padding: 15px;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.5);
+            z-index: 100;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+        #sticker-panel.show { display: block; animation: slideUp 0.2s ease; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 10px;
+        }
+        .sticker-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem; /* Ukuran di panel */
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .sticker-item:hover { background: rgba(255,255,255,0.15); }
+        .sticker-item:active { transform: scale(0.9); }
 
         /* --- EXPIRED OVERLAY --- */
         #expired-overlay {
@@ -258,6 +321,7 @@
             .sidebar { display: none; }
             .chat-header { height: auto; padding: 10px; flex-wrap: wrap; }
             #timer-watermark { font-size: 4rem; }
+            #sticker-panel { bottom: 60px; left: 10px; right: 10px; }
         }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
@@ -320,11 +384,19 @@
 
         <div id="messages-area">
             <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-                Selamat datang. Data akan dibersihkan saat keluar.
+                Selamat datang. Kirim pesan atau stiker.
+            </div>
+        </div>
+
+        <!-- STICKER PANEL -->
+        <div id="sticker-panel">
+            <div class="sticker-grid" id="sticker-grid">
+                <!-- Sticker items injected via JS -->
             </div>
         </div>
 
         <div class="chat-input-area">
+            <button class="btn-sticker" id="sticker-btn" title="Stiker">😀</button>
             <div class="input-wrapper">
                 <input type="text" class="chat-input" id="message-input" placeholder="Ketik pesan..." autocomplete="off">
             </div>
@@ -355,6 +427,15 @@
         let timerEndTime = null;
         let timerRunning = false;
 
+        // STICKER DATA (Array Emojis)
+        const stickers = [
+            '😂', '🤣', '😍', '❤️', '😭', '👍', '👎', '🔥', '🎉', '👀',
+            '🤔', '😡', '👋', '🙏', '🤡', '🤖', '👻', '🐱', '🐶', '🦄',
+            '🎅', '🎃', '💩', '🚀', '💣', '🎵', '🥊', '🤝', '🆘', '💀',
+            '😎', '🥶', '🥵', '🤯', '🥴', '🤢', '🤮', '🤧', '🥺', '😵',
+            '🤑', '🤠', '🤥', '🤫', '🤭', '🧐', '🤓', '😈', '👿', '👹'
+        ];
+
         // DOM
         const displayRoomId = document.getElementById('display-room-id');
         const messagesArea = document.getElementById('messages-area');
@@ -370,6 +451,11 @@
         const btnSetTimer = document.getElementById('btn-set-timer');
         const timerControls = document.getElementById('timer-controls'); 
         const expiredOverlay = document.getElementById('expired-overlay');
+
+        // Sticker DOM
+        const stickerBtn = document.getElementById('sticker-btn');
+        const stickerPanel = document.getElementById('sticker-panel');
+        const stickerGrid = document.getElementById('sticker-grid');
 
         // --- CORE FUNCTIONS ---
 
@@ -387,12 +473,13 @@
             displayRoomId.textContent = currentRoom;
             updateActiveUser(currentUser, true);
 
+            generateStickerGrid(); // Generate stiker
             startConnection();
         }
 
         function startConnection() {
             updateStatus('connecting');
-            const clientId = "chat_clean_" + Math.random().toString(16).substr(2, 8);
+            const clientId = "chat_sticker_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
@@ -425,17 +512,13 @@
         }
 
         // --- HOST ELECTION ---
-
         function checkHostElection() {
             publishMessage({ type: 'host_query', user: currentUser });
-            hostCheckTimeout = setTimeout(() => {
-                becomeHost();
-            }, 1500);
+            hostCheckTimeout = setTimeout(() => { becomeHost(); }, 1500);
         }
 
         function becomeHost() {
-            isHost = true;
-            currentHost = currentUser;
+            isHost = true; currentHost = currentUser;
             timerControls.classList.remove('disabled');
             timerInput.disabled = false;
             btnSetTimer.disabled = false;
@@ -445,8 +528,7 @@
         }
 
         function becomeGuest(hostName) {
-            isHost = false;
-            currentHost = hostName;
+            isHost = false; currentHost = hostName;
             timerControls.classList.add('disabled');
             timerInput.disabled = true;
             btnSetTimer.disabled = true;
@@ -456,19 +538,15 @@
         }
 
         function onFailure() {
-            isConnected = false;
-            updateStatus('disconnected');
-            messageInput.disabled = true;
-            sendBtn.disabled = true;
+            isConnected = false; updateStatus('disconnected');
+            messageInput.disabled = true; sendBtn.disabled = true;
             setTimeout(startConnection, 3000);
         }
 
         function onConnectionLost(responseObject) {
             if (responseObject.errorCode !== 0) {
-                isConnected = false;
-                updateStatus('disconnected');
-                messageInput.disabled = true;
-                sendBtn.disabled = true;
+                isConnected = false; updateStatus('disconnected');
+                messageInput.disabled = true; sendBtn.disabled = true;
                 setTimeout(startConnection, 3000);
             }
         }
@@ -499,49 +577,132 @@
                 }
 
                 // 2. TIMER PROTOCOL
-                else if (payload.type === 'timer_start') {
-                    startSyncTimer(payload.endTime);
+                else if (payload.type === 'timer_start') { startSyncTimer(payload.endTime); }
+                else if (payload.type === 'timer_tick') { updateTimerUI(payload.remaining, true); }
+                else if (payload.type === 'timer_end') { forceKickout(); }
+
+                // 3. CHAT & STICKER PROTOCOL
+                else if (payload.type === 'chat') {
+                    renderChatMessage(payload.user, payload.text, payload.time, false);
                 }
-                else if (payload.type === 'timer_tick') {
-                    updateTimerUI(payload.remaining, true);
-                }
-                else if (payload.type === 'timer_end') {
-                    forceKickout();
+                else if (payload.type === 'sticker') {
+                    renderStickerMessage(payload.user, payload.content, payload.time, false);
                 }
 
-                // 3. PRESENCE
+                // 4. PRESENCE
                 else if (payload.type === 'join') {
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
-                    
-                    const presenceMsg = { type: 'presence', user: currentUser };
-                    publishMessage(presenceMsg);
-                    
+                    publishMessage({ type: 'presence', user: currentUser });
                     if(isHost && timerRunning) {
                         const remaining = timerEndTime - Date.now();
                         publishMessage({ type: 'timer_tick', remaining: remaining > 0 ? remaining : 0 });
                     }
                 }
-                else if (payload.type === 'presence') {
-                    updateActiveUser(payload.user, true);
-                }
+                else if (payload.type === 'presence') { updateActiveUser(payload.user, true); }
                 else if (payload.type === 'leave') {
                     updateActiveUser(payload.user, false);
                     if (payload.user === currentHost) {
-                        currentHost = "";
-                        renderSystemMessage("Host keluar.");
-                        timerControls.classList.add('disabled');
-                        timerInput.disabled = true;
-                        btnSetTimer.disabled = true;
-                    } else {
-                        renderSystemMessage(`${payload.user} keluar.`);
-                    }
-                }
-                else if (payload.type === 'chat') {
-                    renderChatMessage(payload.user, payload.text, payload.time, false);
+                        currentHost = ""; renderSystemMessage("Host keluar.");
+                        timerControls.classList.add('disabled'); timerInput.disabled = true; btnSetTimer.disabled = true;
+                    } else { renderSystemMessage(`${payload.user} keluar.`); }
                 }
 
             } catch(e) { console.error(e); }
+        }
+
+        // --- STICKER LOGIC ---
+
+        function generateStickerGrid() {
+            stickers.forEach(emoji => {
+                const div = document.createElement('div');
+                div.className = 'sticker-item';
+                div.textContent = emoji;
+                div.onclick = () => sendSticker(emoji);
+                stickerGrid.appendChild(div);
+            });
+        }
+
+        function toggleStickerPanel() {
+            stickerPanel.classList.toggle('show');
+        }
+
+        // Tutup panel jika klik di luar
+        document.addEventListener('click', (e) => {
+            if (!stickerPanel.contains(e.target) && !stickerBtn.contains(e.target)) {
+                stickerPanel.classList.remove('show');
+            }
+        });
+
+        stickerBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Biar gak ketutup langsung
+            toggleStickerPanel();
+        });
+
+        function sendSticker(emoji) {
+            const msg = {
+                type: 'sticker', user: currentUser, content: emoji,
+                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            };
+            publishMessage(msg);
+            renderStickerMessage(currentUser, emoji, msg.time, true);
+            stickerPanel.classList.remove('show'); // Tutup panel
+        }
+
+        function renderStickerMessage(user, emoji, time, isMe) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+            
+            // Avatar tetap muncul
+            const avatarColor = userColors[user] || '#777';
+            const initial = user.substring(0,2).toUpperCase();
+
+            row.innerHTML = `
+                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
+                <div class="msg-content">
+                    ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
+                    <div class="sticker-bubble">${emoji}</div>
+                    <div class="sticker-meta">
+                        <span>${time}</span>
+                        ${isMe ? '<span>✓✓</span>' : ''}
+                    </div>
+                </div>
+            `;
+            messagesArea.appendChild(row);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        // --- NORMAL CHAT LOGIC ---
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if(!text || !isConnected) return;
+            const msg = {
+                type: 'chat', user: currentUser, text: text,
+                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            };
+            publishMessage(msg);
+            renderChatMessage(currentUser, text, msg.time, true);
+            messageInput.value = "";
+        }
+
+        function renderChatMessage(user, text, time, isMe) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+            const avatarColor = userColors[user] || '#777';
+            const initial = user.substring(0,2).toUpperCase();
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            row.innerHTML = `
+                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
+                <div class="msg-content">
+                    ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
+                    <div class="msg-bubble">${safeText}</div>
+                    <span class="msg-time">${time}</span>
+                </div>
+            `;
+            messagesArea.appendChild(row);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
         // --- TIMER LOGIC ---
@@ -550,20 +711,15 @@
             if (!isHost) return;
             const mins = parseInt(timerInput.value);
             if(!mins || mins <= 0) return;
-
             const durationMs = mins * 60 * 1000;
             const endTime = Date.now() + durationMs;
-
             publishMessage({ type: 'timer_start', endTime: endTime });
             startSyncTimer(endTime);
         }
 
         function startSyncTimer(endTime) {
             if(timerInterval) clearInterval(timerInterval);
-            
-            timerRunning = true;
-            timerEndTime = endTime;
-            
+            timerRunning = true; timerEndTime = endTime;
             timerWatermark.style.display = 'block';
             btnSetTimer.textContent = "⏹ Stop/Reset";
             btnSetTimer.classList.add('active');
@@ -589,44 +745,26 @@
             const m = Math.floor(totalSeconds / 60);
             const s = totalSeconds % 60;
             const timeString = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            
             timerWatermark.textContent = timeString;
-            
-            if(totalSeconds <= 30) {
-                timerWatermark.classList.add('urgent');
-            } else {
-                timerWatermark.classList.remove('urgent');
-            }
+            if(totalSeconds <= 30) { timerWatermark.classList.add('urgent'); } 
+            else { timerWatermark.classList.remove('urgent'); }
         }
 
-        // --- EXIT & CLEAN LOGIC (PERMINTAAN USER) ---
+        // --- EXIT & CLEAN LOGIC ---
 
         function cleanAppData() {
             console.log("Membersihkan data aplikasi...");
-            
-            // 1. Hapus Local Storage (Data tersimpan permanen)
             localStorage.clear();
-            
-            // 2. Hapus Session Storage (Data sementara tab)
             sessionStorage.clear();
-            
-            // 3. Opsional: Bersihkan input field visual (tidak terlalu perlu karena akan reload)
-            messageInput.value = "";
-            timerInput.value = "";
+            messageInput.value = ""; timerInput.value = "";
         }
 
         function cleanAndExit() {
-            // Beritahu server kita pergi
             if (isConnected && client) {
                  publishMessage({ type: 'leave', user: currentUser });
                  try { client.disconnect(); } catch(e){}
             }
-
-            // Bersihkan Data
             cleanAppData();
-
-            // Reload halaman untuk reset total
-            // Kita tambahkan timestamp agar browser tidak mengambil cache halaman yang lama
             const url = new URL(window.location.href);
             url.searchParams.set('t', new Date().getTime());
             window.location.href = url.toString();
@@ -635,11 +773,7 @@
         function forceKickout() {
             expiredOverlay.style.display = 'flex';
             if(timerInterval) clearInterval(timerInterval);
-            
-            // Otomatis jalankan clean exit setelah 2 detik
-            setTimeout(() => {
-                cleanAndExit();
-            }, 2000);
+            setTimeout(() => { cleanAndExit(); }, 2000);
         }
 
         // --- UI HELPERS ---
@@ -685,21 +819,7 @@
 
         function updateUserListHostBadge(username, isHost) {
             const badge = document.getElementById('host-badge-' + username);
-            if(badge) {
-                badge.style.display = isHost ? 'inline-block' : 'none';
-            }
-        }
-
-        function sendMessage() {
-            const text = messageInput.value.trim();
-            if(!text || !isConnected) return;
-            const msg = {
-                type: 'chat', user: currentUser, text: text,
-                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
-            };
-            publishMessage(msg);
-            renderChatMessage(currentUser, text, msg.time, true);
-            messageInput.value = "";
+            if(badge) { badge.style.display = isHost ? 'inline-block' : 'none'; }
         }
 
         function updateStatus(state) {
@@ -713,25 +833,6 @@
             let color = '#';
             for (let i = 0; i < 6; i++) color += letters[Math.floor(Math.random() * 16)];
             return color;
-        }
-
-        function renderChatMessage(user, text, time, isMe) {
-            const row = document.createElement('div');
-            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
-            const avatarColor = userColors[user] || '#777';
-            const initial = user.substring(0,2).toUpperCase();
-            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-            row.innerHTML = `
-                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
-                <div class="msg-content">
-                    ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
-                    <div class="msg-bubble">${safeText}</div>
-                    <span class="msg-time">${time}</span>
-                </div>
-            `;
-            messagesArea.appendChild(row);
-            messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
         function renderSystemMessage(text) {
