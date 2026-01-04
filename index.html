@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Realtime Sync Host Room</title>
+    <title>Private Chat Anonim</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     
     <style>
@@ -243,6 +243,16 @@
         }
         #expired-overlay h1 { font-size: 3rem; color: var(--danger); margin-bottom: 20px; }
         #expired-overlay p { color: white; font-size: 1.2rem; }
+        #expired-overlay button {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
 
         @media (max-width: 600px) {
             .sidebar { display: none; }
@@ -258,7 +268,8 @@
     <!-- EXPIRED SCREEN -->
     <div id="expired-overlay">
         <h1>⏰ WAKTU HABIS</h1>
-        <p>Sesi telah berakhir. Anda akan keluar otomatis...</p>
+        <p>Membersihkan data aplikasi...</p>
+        <button onclick="cleanAndExit()">KELUAR SEKARANG</button>
     </div>
 
     <!-- LOGIN -->
@@ -303,13 +314,13 @@
                     <div class="status-dot"></div>
                     <span>Offline</span>
                 </div>
-                <button class="btn-exit" onclick="leaveApp()">EXIT</button>
+                <button class="btn-exit" onclick="cleanAndExit()">EXIT</button>
             </div>
         </header>
 
         <div id="messages-area">
             <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-                Selamat datang. Timer disinkronkan oleh Host.
+                Selamat datang. Data akan dibersihkan saat keluar.
             </div>
         </div>
 
@@ -381,7 +392,7 @@
 
         function startConnection() {
             updateStatus('connecting');
-            const clientId = "chat_sync_" + Math.random().toString(16).substr(2, 8);
+            const clientId = "chat_clean_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
 
             client.onConnectionLost = onConnectionLost;
@@ -487,13 +498,12 @@
                     updateUserListHostBadge(payload.user, true);
                 }
 
-                // 2. TIMER PROTOCOL (SYNC LOGIC BARU)
+                // 2. TIMER PROTOCOL
                 else if (payload.type === 'timer_start') {
                     startSyncTimer(payload.endTime);
                 }
                 else if (payload.type === 'timer_tick') {
-                    // Guest menerima update waktu dari Host
-                    updateTimerUI(payload.remaining, true); // true = force update
+                    updateTimerUI(payload.remaining, true);
                 }
                 else if (payload.type === 'timer_end') {
                     forceKickout();
@@ -507,11 +517,13 @@
                     const presenceMsg = { type: 'presence', user: currentUser };
                     publishMessage(presenceMsg);
                     
-                    // Jika Host dan timer jalan, kirim status terbaru ke user baru
                     if(isHost && timerRunning) {
                         const remaining = timerEndTime - Date.now();
                         publishMessage({ type: 'timer_tick', remaining: remaining > 0 ? remaining : 0 });
                     }
+                }
+                else if (payload.type === 'presence') {
+                    updateActiveUser(payload.user, true);
                 }
                 else if (payload.type === 'leave') {
                     updateActiveUser(payload.user, false);
@@ -532,7 +544,7 @@
             } catch(e) { console.error(e); }
         }
 
-        // --- TIMER LOGIC (REVAMPED) ---
+        // --- TIMER LOGIC ---
 
         function setTimer() {
             if (!isHost) return;
@@ -547,7 +559,6 @@
         }
 
         function startSyncTimer(endTime) {
-            // Bersihkan timer lama
             if(timerInterval) clearInterval(timerInterval);
             
             timerRunning = true;
@@ -557,37 +568,24 @@
             btnSetTimer.textContent = "⏹ Stop/Reset";
             btnSetTimer.classList.add('active');
 
-            // Loop Utama
             timerInterval = setInterval(() => {
                 const now = Date.now();
                 const remaining = timerEndTime - now;
 
                 if (remaining <= 0) {
-                    // Waktu Habis
                     clearInterval(timerInterval);
                     updateTimerUI(0);
-                    
-                    if (isHost) {
-                        // Host yang mengumumkan habis
-                        publishMessage({ type: 'timer_end' });
-                    }
+                    if (isHost) publishMessage({ type: 'timer_end' });
                     forceKickout();
                 } else {
-                    // Masih jalan
                     updateTimerUI(remaining);
-                    
-                    // --- LOGIKA HEARTBEAT SYNC ---
-                    // Jika Saya Host, kirim waktu tersisa setiap 1 detik agar semua tamu sinkron
-                    if (isHost) {
-                        publishMessage({ type: 'timer_tick', remaining: remaining });
-                    }
+                    if (isHost) publishMessage({ type: 'timer_tick', remaining: remaining });
                 }
             }, 1000);
         }
 
         function updateTimerUI(ms, forceSync = false) {
-            // Konversi ms ke menit:detik
-            const totalSeconds = Math.ceil(ms / 1000); // Pembulatan ke atas
+            const totalSeconds = Math.ceil(ms / 1000);
             const m = Math.floor(totalSeconds / 60);
             const s = totalSeconds % 60;
             const timeString = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -601,11 +599,47 @@
             }
         }
 
+        // --- EXIT & CLEAN LOGIC (PERMINTAAN USER) ---
+
+        function cleanAppData() {
+            console.log("Membersihkan data aplikasi...");
+            
+            // 1. Hapus Local Storage (Data tersimpan permanen)
+            localStorage.clear();
+            
+            // 2. Hapus Session Storage (Data sementara tab)
+            sessionStorage.clear();
+            
+            // 3. Opsional: Bersihkan input field visual (tidak terlalu perlu karena akan reload)
+            messageInput.value = "";
+            timerInput.value = "";
+        }
+
+        function cleanAndExit() {
+            // Beritahu server kita pergi
+            if (isConnected && client) {
+                 publishMessage({ type: 'leave', user: currentUser });
+                 try { client.disconnect(); } catch(e){}
+            }
+
+            // Bersihkan Data
+            cleanAppData();
+
+            // Reload halaman untuk reset total
+            // Kita tambahkan timestamp agar browser tidak mengambil cache halaman yang lama
+            const url = new URL(window.location.href);
+            url.searchParams.set('t', new Date().getTime());
+            window.location.href = url.toString();
+        }
+
         function forceKickout() {
             expiredOverlay.style.display = 'flex';
             if(timerInterval) clearInterval(timerInterval);
-            if(client) try { client.disconnect(); } catch(e){}
-            setTimeout(() => { location.reload(); }, 3000);
+            
+            // Otomatis jalankan clean exit setelah 2 detik
+            setTimeout(() => {
+                cleanAndExit();
+            }, 2000);
         }
 
         // --- UI HELPERS ---
@@ -654,14 +688,6 @@
             if(badge) {
                 badge.style.display = isHost ? 'inline-block' : 'none';
             }
-        }
-
-        function leaveApp() {
-            publishMessage({ type: 'leave', user: currentUser });
-            setTimeout(() => {
-                if (client) client.disconnect();
-                location.reload();
-            }, 500);
         }
 
         function sendMessage() {
