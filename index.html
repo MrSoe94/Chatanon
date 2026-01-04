@@ -636,9 +636,9 @@
             if (!file) return;
 
             // Batasi ukuran file non-image (MQTT limit)
-            const maxSize = 50000 * 1024; // 50MB limit safety
+            const maxSize = 5000 * 1024; // 5MB limit safety
             if (file.size > maxSize && !file.type.startsWith('image/')) {
-                alert("File terlalu besar! Max 50MB untuk non-gambar.");
+                alert("File terlalu besar! Max 5MB untuk non-gambar.");
                 return;
             }
 
