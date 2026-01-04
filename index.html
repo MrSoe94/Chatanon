@@ -523,12 +523,21 @@
             cursor: pointer;
             font-size: 20px;
             transition: all 0.2s ease;
+            padding: 4px;
+            min-width: 35px;
+            min-height: 35px;
         }
         
         #private-sticker-panel .sticker-item:hover {
             background: rgba(52, 152, 219, 0.3);
             transform: scale(1.1);
             border-color: #3498db;
+        }
+        
+        #private-sticker-panel .sticker-item img {
+            max-width: 25px;
+            max-height: 25px;
+            object-fit: contain;
         }
 
         /* User Notification Badge */
@@ -1960,8 +1969,11 @@
         function generatePrivateStickerGrid() {
             // Bersihkan dulu
             privateStickerGrid.innerHTML = '';
+            
+            // Debug: Log untuk memastikan fungsi dipanggil
+            console.log('Generating private sticker grid, stickers count:', stickers.length);
 
-            stickers.forEach(sticker => {
+            stickers.forEach((sticker, index) => {
                 const div = document.createElement('div');
                 div.className = 'sticker-item';
                 
@@ -1969,6 +1981,7 @@
                     // Emoji sticker
                     div.textContent = sticker;
                     div.onclick = () => sendPrivateSticker(sticker);
+                    console.log('Added emoji sticker:', sticker);
                 } else {
                     // Image sticker from CDN
                     const img = document.createElement('img');
@@ -1979,10 +1992,14 @@
                     img.style.objectFit = 'contain';
                     div.appendChild(img);
                     div.onclick = () => sendPrivateSticker(sticker);
+                    console.log('Added image sticker:', sticker.name);
                 }
                 
                 privateStickerGrid.appendChild(div);
             });
+            
+            // Debug: Log jumlah sticker yang ditambahkan
+            console.log('Private sticker grid items count:', privateStickerGrid.children.length);
         }
 
         function sendPrivateSticker(sticker) {
