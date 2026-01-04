@@ -429,6 +429,65 @@
             font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;
         }
 
+        /* --- MENTION SUGGESTION DROPDOWN --- */
+        .mention-suggestions {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: var(--sticker-panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            margin-bottom: 5px;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
+        }
+        .mention-suggestions.show {
+            display: block;
+            animation: slideUp 0.2s ease;
+        }
+        .mention-item {
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .mention-item:last-child {
+            border-bottom: none;
+        }
+        .mention-item:hover,
+        .mention-item.selected {
+            background: rgba(255,255,255,0.1);
+        }
+        .mention-item.selected {
+            background: var(--accent);
+        }
+        .mention-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: white;
+        }
+        .mention-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .mention-host {
+            color: var(--host-gold);
+            margin-left: 5px;
+        }
+
         @media (max-width: 600px) {
             .sidebar { display: none; }
             .chat-header { height: auto; padding: 10px; flex-wrap: wrap; }
@@ -517,6 +576,8 @@
             <div class="input-wrapper">
                 <!-- ONKEYPRESS DI TAMBAHKAN DI SINI -->
                 <input type="text" class="chat-input" id="message-input" placeholder="Ketik pesan..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMessage()">
+                <!-- MENTION SUGGESTION DROPDOWN -->
+                <div class="mention-suggestions" id="mention-suggestions"></div>
             </div>
             <button class="btn-send" id="send-btn" onclick="sendMessage()">Send</button>
         </div>
@@ -656,15 +717,24 @@
         const privateChatMessages = document.getElementById('private-chat-messages');
         const privateChatInput = document.getElementById('private-chat-input');
 
+        // Mention Suggestion DOM
+        const mentionSuggestionsEl = document.getElementById('mention-suggestions');
+
         // Private Chat Variables
         let currentPrivateChatUser = '';
         let privateChatHistory = {};
 
+        // Mention Suggestion Variables
+        let mentionSuggestions = [];
+        let selectedMentionIndex = -1;
+        let isMentionMode = false;
+        let mentionStartPos = -1;
+
         // --- CORE FUNCTIONS ---
 
         function generateRandomUsername() {
-            const adjectives = ['Cepot', 'Bagong', 'Semar', 'Petruk', 'Gareng', 'Unyil', 'Ujang', 'Kabayan', 'Jaka', 'Lutung'];
-            const nouns = ['Tingkir', 'Kasarung', 'Sasmita', 'Wibawa', 'Perkasa', 'Jaya', 'Makmur', 'Sejahtera', 'Bahagia', 'Mandiri'];
+            const adjectives = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Semarang', 'Makassar', 'Palembang', 'Tangerang', 'Depok', 'Bekasi'];
+            const nouns = ['CEO', 'VIP', 'PRO', 'MAX', 'TOP', 'GOLD', 'STAR', 'ACE', 'ELITE', 'PLUS'];
             const numbers = Math.floor(Math.random() * 999) + 1;
             
             const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
@@ -1063,6 +1133,13 @@
         function sendMessage() {
             const text = messageInput.value.trim();
             if(!text || !isConnected) return;
+            
+            // If we're in mention mode and Enter is pressed, handle mention selection first
+            if (isMentionMode && selectedMentionIndex >= 0) {
+                selectMention(mentionSuggestions[selectedMentionIndex]);
+                return;
+            }
+            
             const msg = {
                 type: 'chat', user: currentUser, text: text,
                 time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
@@ -1070,6 +1147,8 @@
             publishMessage(msg);
             renderChatMessage(currentUser, text, msg.time, true);
             messageInput.value = "";
+            hideMentionSuggestions();
+            isMentionMode = false;
         }
 
         function renderChatMessage(user, text, time, isMe) {
@@ -1253,6 +1332,156 @@
         }
 
         document.getElementById('roomid').value = "A-" + Math.floor(100 + Math.random() * 900);
+
+        // --- MENTION SUGGESTION FUNCTIONALITY ---
+        
+        // Add input event listener for mention detection
+        messageInput.addEventListener('input', handleInput);
+        messageInput.addEventListener('keydown', handleKeyDown);
+        
+        // Close suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!mentionSuggestionsEl.contains(e.target) && e.target !== messageInput) {
+                hideMentionSuggestions();
+            }
+        });
+
+        function handleInput(e) {
+            const value = e.target.value;
+            const cursorPos = e.target.selectionStart;
+            
+            // Check if we're in mention mode
+            if (isMentionMode) {
+                // Find the @ symbol position from cursor backwards
+                const atPos = value.lastIndexOf('@', cursorPos - 1);
+                
+                if (atPos === -1 || cursorPos - atPos <= 1) {
+                    hideMentionSuggestions();
+                    isMentionMode = false;
+                    return;
+                }
+                
+                // Get the text after @ for filtering
+                const query = value.substring(atPos + 1, cursorPos).toLowerCase();
+                mentionStartPos = atPos;
+                
+                // Filter and show suggestions
+                showMentionSuggestions(query);
+            } else {
+                // Check if @ was typed
+                if (e.target.selectionStart > 0 && value[cursorPos - 1] === '@') {
+                    isMentionMode = true;
+                    selectedMentionIndex = -1;
+                    showMentionSuggestions('');
+                }
+            }
+        }
+
+        function handleKeyDown(e) {
+            if (!isMentionMode || mentionSuggestions.length === 0) return;
+            
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    selectedMentionIndex = (selectedMentionIndex + 1) % mentionSuggestions.length;
+                    updateMentionSelection();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    selectedMentionIndex = selectedMentionIndex <= 0 ? mentionSuggestions.length - 1 : selectedMentionIndex - 1;
+                    updateMentionSelection();
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    if (selectedMentionIndex >= 0) {
+                        selectMention(mentionSuggestions[selectedMentionIndex]);
+                    }
+                    break;
+                case 'Escape':
+                    hideMentionSuggestions();
+                    isMentionMode = false;
+                    break;
+            }
+        }
+
+        function showMentionSuggestions(query) {
+            // Get all active users except current user
+            const users = Object.keys(activeUsers).filter(user => user !== currentUser);
+            
+            // Filter users based on query
+            mentionSuggestions = users.filter(user => 
+                user.toLowerCase().includes(query)
+            );
+            
+            if (mentionSuggestions.length === 0) {
+                hideMentionSuggestions();
+                return;
+            }
+            
+            // Render suggestions
+            renderMentionSuggestions();
+        }
+
+        function renderMentionSuggestions() {
+            mentionSuggestionsEl.innerHTML = '';
+            mentionSuggestionsEl.classList.add('show');
+            
+            mentionSuggestions.forEach((username, index) => {
+                const item = document.createElement('div');
+                item.className = 'mention-item';
+                if (index === selectedMentionIndex) {
+                    item.classList.add('selected');
+                }
+                
+                const color = userColors[username] || '#777';
+                const initial = username.substring(0,2).toUpperCase();
+                const isHost = username === currentHost;
+                
+                item.innerHTML = `
+                    <div class="mention-avatar" style="background: ${color}">${initial}</div>
+                    <div class="mention-name">${username}</div>
+                    ${isHost ? '<span class="mention-host">👑</span>' : ''}
+                `;
+                
+                item.addEventListener('click', () => selectMention(username));
+                mentionSuggestionsEl.appendChild(item);
+            });
+        }
+
+        function updateMentionSelection() {
+            const items = mentionSuggestionsEl.querySelectorAll('.mention-item');
+            items.forEach((item, index) => {
+                if (index === selectedMentionIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        function selectMention(username) {
+            const value = messageInput.value;
+            const beforeMention = value.substring(0, mentionStartPos);
+            const afterCursor = value.substring(messageInput.selectionStart);
+            
+            // Replace @mention with @username
+            messageInput.value = beforeMention + '@' + username + ' ' + afterCursor;
+            
+            // Set cursor position after the mention
+            const newCursorPos = mentionStartPos + username.length + 2;
+            messageInput.setSelectionRange(newCursorPos, newCursorPos);
+            
+            hideMentionSuggestions();
+            isMentionMode = false;
+            messageInput.focus();
+        }
+
+        function hideMentionSuggestions() {
+            mentionSuggestionsEl.classList.remove('show');
+            mentionSuggestionsEl.innerHTML = '';
+            mentionSuggestions = [];
+            selectedMentionIndex = -1;
+        }
 
     </script>
 </body>
