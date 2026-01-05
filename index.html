@@ -159,13 +159,14 @@
         .room-id { font-weight: normal; color: var(--text-muted); font-size: 0.9rem; font-family: monospace; }
         
         .timer-controls {
-            margin-top: 4px;
             display: flex;
             gap: 5px;
             align-items: center;
             transition: opacity 0.3s;
+            margin-left: 10px;
         }
         .timer-controls.disabled { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
+        .timer-controls.hidden { display: none; }
         .timer-input {
             width: 50px; background: var(--input-bg); border: 1px solid var(--border);
             color: white; padding: 2px 5px; border-radius: 4px; text-align: center;
@@ -1124,11 +1125,11 @@
                 <div class="room-title-row">
                     <span class="room-title">Room </span>
                     <span class="room-id" id="display-room-id">---</span>
-                </div>
-                <!-- TIMER CONTROL -->
-                <div class="timer-controls" id="timer-controls">
-                    <input type="number" id="timer-minutes" class="timer-input" placeholder="Menit" min="1" max="60">
-                    <button class="btn-timer" id="btn-set-timer" onclick="setTimer()">⏱ Set Timer</button>
+                    <!-- TIMER CONTROL -->
+                    <div class="timer-controls" id="timer-controls">
+                        <input type="number" id="timer-minutes" class="timer-input" placeholder="Menit" min="1" max="60">
+                        <button class="btn-timer" id="btn-set-timer" onclick="setTimer()">⏱ Set Timer</button>
+                    </div>
                 </div>
             </div>
             
@@ -1725,18 +1726,19 @@
 
             currentUser = user;
             currentRoom = room;
-
+            
             document.getElementById('login-overlay').style.display = 'none';
             displayRoomId.textContent = currentRoom;
             updateActiveUser(currentUser, true);
-
-            // Initially hide settings button - will be shown when user becomes host/admin
+            
+            // Initially hide settings button and timer controls - will be shown when user becomes host/admin
             settingsBtn.style.display = 'none';
-
+            timerControls.classList.add('hidden');
+            
             generateStickerGrid();
             startConnection();
         }
-
+        
         function startConnection() {
             updateStatus('connecting');
             const clientId = "chat_file_" + Math.random().toString(16).substr(2, 8);
@@ -1793,6 +1795,7 @@
         function becomeHost() {
             isHost = true; currentHost = currentUser;
             timerControls.classList.remove('disabled');
+            timerControls.classList.remove('hidden');
             timerInput.disabled = false;
             btnSetTimer.disabled = false;
             renderSystemMessage("Anda adalah HOST. Mengatur waktu.");
@@ -1802,14 +1805,12 @@
             
             // Show settings button for host
             settingsBtn.style.display = 'block';
-            
-            // Re-render user list so all rows get admin controls for the new host
-            updateUserList();
         }
         
         function becomeGuest(hostName) {
             isHost = false; currentHost = hostName;
             timerControls.classList.add('disabled');
+            timerControls.classList.add('hidden');
             timerInput.disabled = true;
             btnSetTimer.disabled = true;
             timerInput.placeholder = "Host Only";
