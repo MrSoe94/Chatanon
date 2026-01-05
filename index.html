@@ -844,8 +844,9 @@
             <div class="header-right">
                 <div id="connection-badge" class="connection-badge">
                     <div class="status-dot"></div>
-                    <span>Offline</span>
+                    <span id="connection-text">Offline</span>
                 </div>
+                <div id="user-display" style="color: var(--text-muted); font-size: 0.75rem;"></div>
                 <button class="btn-exit" onclick="cleanAndExit()">EXIT</button>
             </div>
         </header>
@@ -1016,6 +1017,7 @@
         const sendBtn = document.getElementById('send-btn');
         const statusBadge = document.getElementById('connection-badge');
         const userCountEl = document.getElementById('user-count');
+        const userDisplayEl = document.getElementById('user-display');
         
         // Timer DOM
         const timerWatermark = document.getElementById('timer-watermark');
@@ -1149,7 +1151,13 @@
         // --- HOST ELECTION ---
         function checkHostElection() {
             publishMessage({ type: 'host_query', user: currentUser });
-            hostCheckTimeout = setTimeout(() => { becomeHost(); }, 1500);
+            // Only become host if no other host responds within 1.5 seconds
+            hostCheckTimeout = setTimeout(() => { 
+                // Check if there's already a host before becoming host
+                if (!currentHost) {
+                    becomeHost(); 
+                }
+            }, 1500);
         }
 
         function becomeHost() {
@@ -1160,6 +1168,7 @@
             renderSystemMessage("Anda adalah HOST. Mengatur waktu.");
             publishMessage({ type: 'announce_host', user: currentUser });
             updateUserListHostBadge(currentUser, true);
+            updateStatus('host'); // Update user display
         }
 
         function becomeGuest(hostName) {
@@ -1170,6 +1179,7 @@
             timerInput.placeholder = "Host Only";
             renderSystemMessage(`Host: ${hostName}.`);
             updateUserListHostBadge(hostName, true);
+            updateStatus('guest'); // Update user display
         }
 
         function onFailure() {
@@ -1301,15 +1311,7 @@
             fileInput.click();
         });
 
-        // Global chat sticker button → toggle sticker panel
-        stickerBtn.addEventListener('click', () => {
-            // Tutup panel private jika terbuka
-            privateStickerPanel.classList.remove('show');
-            // Toggle panel global
-            stickerPanel.classList.toggle('show');
-        });
-
-        // Global chat file input → send file message
+        // Global file input → send file message
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -1358,20 +1360,7 @@
             privateFileInput.click();
         });
 
-        // Private chat sticker button → toggle sticker panel
-        privateStickerBtn.addEventListener('click', () => {
-            // Tutup panel global jika terbuka
-            stickerPanel.classList.remove('show');
-            // Toggle panel private
-            privateStickerPanel.classList.toggle('show');
-            // Generate ulang sticker grid untuk memastikan fresh
-            if (privateStickerPanel.classList.contains('show')) {
-                generatePrivateStickerGrid();
-                
-            }
-        });
-
-        // Private chat file input → send private_file message
+        // Private file input → send file message
         privateFileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file || !currentPrivateChatUser) return;
@@ -2203,9 +2192,9 @@
         // --- EXIT & CLEAN LOGIC ---
 
         function cleanAppData() {
-            localStorage.clear();
-            sessionStorage.clear();
-            messageInput.value = ""; timerInput.value = "";
+            // Don't clear localStorage/sessionStorage as it causes browser security issues
+            messageInput.value = ""; 
+            timerInput.value = "";
         }
 
         function cleanAndExit() {
@@ -2223,8 +2212,14 @@
 
         function updateStatus(state) {
             statusBadge.className = 'connection-badge';
-            if (state === 'connected') statusBadge.classList.add('connected');
-            statusBadge.querySelector('span').textContent = state === 'connected' ? "Online" : "Offline";
+            if (state === 'connected' || state === 'host' || state === 'guest') {
+                statusBadge.classList.add('connected');
+                document.getElementById('connection-text').textContent = "Online";
+                userDisplayEl.textContent = `${currentUser} ${isHost ? '👑' : ''}`;
+            } else {
+                document.getElementById('connection-text').textContent = "Offline";
+                userDisplayEl.textContent = '';
+            }
         }
 
         function getRandomColor() {
@@ -2245,6 +2240,188 @@
 
         // Initialize room ID
         document.getElementById('roomid').value = "A-" + Math.floor(100 + Math.random() * 900);
+
+        // --- IMAGE RESIZE UTILITY ---
+        function resizeImage(file, maxWidth, quality, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > maxWidth) {
+                        height = (maxWidth / width) * height;
+                        width = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    ctx.drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- EVENT LISTENERS ---
+        
+        // Add input event listener for mention detection
+        messageInput.addEventListener('input', handleInput);
+        messageInput.addEventListener('keydown', handleKeyDown);
+        
+        // Add event listeners for private chat input
+        privateChatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendPrivateMessage();
+            }
+        });
+
+        // Add event listener for send button
+        sendBtn.addEventListener('click', sendMessage);
+
+        // Add event listener for private chat send button
+        document.querySelector('.private-chat-send').addEventListener('click', sendPrivateMessage);
+
+        // Close suggestions and private chat modal when clicking outside
+        document.addEventListener('click', (e) => {
+            // Handle mention suggestions
+            if (!mentionSuggestionsEl.contains(e.target) && e.target !== messageInput) {
+                hideMentionSuggestions();
+            }
+            
+            // Handle private chat modal
+            if (privateChatModal.style.display === 'flex' && 
+                !privateChatModal.contains(e.target) && 
+                !e.target.closest('.private-chat-btn')) {
+                closePrivateChat();
+            }
+        });
+
+        // Global file button → open file picker
+        fileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Global sticker button → toggle sticker panel
+        stickerBtn.addEventListener('click', () => {
+            // Tutup panel private jika terbuka
+            privateStickerPanel.classList.remove('show');
+            // Toggle panel global
+            stickerPanel.classList.toggle('show');
+        });
+
+        // Global file input → send file message
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const maxSize = 3000 * 1024; // 3MB limit safety
+            if (file.size > maxSize && !file.type.startsWith('image/')) {
+                alert("File terlalu besar! Max 3MB untuk non-gambar.");
+                return;
+            }
+
+            const reader = new FileReader();
+
+            if (file.type.startsWith('image/')) {
+                // Resize image before sending
+                resizeImage(file, 800, 0.7, (base64) => {
+                    const msg = {
+                        type: 'file', user: currentUser, filename: file.name,
+                        content: base64, mime: file.type, size: base64.length,
+                        time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                    };
+                    publishMessage(msg);
+                    renderFileMessage(msg, true);
+                });
+            } else {
+                // Non-image file via Base64
+                reader.onload = () => {
+                    const base64 = reader.result;
+                    const msg = {
+                        type: 'file', user: currentUser, filename: file.name,
+                        content: base64, mime: file.type, size: base64.length,
+                        time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                    };
+                    publishMessage(msg);
+                    renderFileMessage(msg, true);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Private file button → open file picker
+        privateFileBtn.addEventListener('click', () => {
+            privateFileInput.click();
+        });
+
+        // Private file input → send file message
+        privateFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const maxSize = 3000 * 1024; // 3MB limit safety
+            if (file.size > maxSize && !file.type.startsWith('image/')) {
+                alert("File terlalu besar! Max 3MB untuk non-gambar.");
+                return;
+            }
+
+            const reader = new FileReader();
+
+            if (file.type.startsWith('image/')) {
+                // Resize image before sending
+                resizeImage(file, 800, 0.7, (base64) => {
+                    const msg = {
+                        type: 'private_file', from: currentUser, to: currentPrivateChatUser,
+                        filename: file.name, content: base64, mime: file.type, size: base64.length,
+                        time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                    };
+                    publishMessage(msg);
+                    renderPrivateFileMessage(msg, true);
+                });
+            } else {
+                // Non-image file via Base64
+                reader.onload = () => {
+                    const base64 = reader.result;
+                    const msg = {
+                        type: 'private_file', from: currentUser, to: currentPrivateChatUser,
+                        filename: file.name, content: base64, mime: file.type, size: base64.length,
+                        time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                    };
+                    publishMessage(msg);
+                    renderPrivateFileMessage(msg, true);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Private sticker button → toggle sticker panel
+        privateStickerBtn.addEventListener('click', () => {
+            // Tutup panel global jika terbuka
+            stickerPanel.classList.remove('show');
+            // Toggle panel private
+            privateStickerPanel.classList.toggle('show');
+            
+            // Generate ulang sticker grid untuk memastikan fresh
+            if (privateStickerPanel.classList.contains('show')) {
+                generatePrivateStickerGrid();
+            }
+        });
+
+        // Cancel reply button
+        cancelReplyBtn.addEventListener('click', cancelReply);
+
+        // --- INITIALIZATION ---
+        
+        // Generate sticker grid on load
+        generateStickerGrid();
 
         </script>
     </body>
