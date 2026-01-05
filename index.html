@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Private Chat Anonymous</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
     <style>
         :root {
@@ -94,13 +95,26 @@
         .user-status-text { font-size: 0.75rem; color: var(--online-green); }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--online-green); }
         .private-chat-btn {
-            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-            background: var(--accent); color: white; border: none; border-radius: 4px;
-            padding: 4px 8px; font-size: 0.7rem; cursor: pointer;
-            transition: background 0.2s;
-            position: relative;
+            position: absolute;
+            right: 80px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            opacity: 1; /* selalu terlihat */
+            transition: all 0.2s;
+            z-index: 5;
         }
-        .private-chat-btn:hover { background: #008f6f; }
+        .private-chat-btn:hover {
+            background: var(--accent);
+            color: white;
+            z-index: 10;
+        }
         
         .user-notification-badge {
             position: absolute;
@@ -784,6 +798,283 @@
             background: rgba(255,255,255,0.1);
         }
 
+        /* --- ADMIN & MODERATION CONTROLS --- */
+        .admin-controls {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .user-item:hover .admin-controls {
+            opacity: 1;
+        }
+        .admin-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-size: 0.6rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .admin-btn:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+        .admin-btn.mute {
+            background: rgba(255, 193, 7, 0.2);
+            border-color: rgba(255, 193, 7, 0.3);
+        }
+        .admin-btn.mute:hover {
+            background: rgba(255, 193, 7, 0.5);
+        }
+
+.role-admin {
+    background: var(--danger);
+    color: white;
+}
+.role-moderator {
+    background: #6f42c1;
+    color: white;
+}
+.role-member {
+    background: #6c757d;
+    color: white;
+}
+
+        /* --- ROOM SETTINGS MODAL --- */
+        #room-settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+        }
+        .room-settings-container {
+            background: var(--sidebar-bg);
+            width: 500px;
+            max-height: 80vh;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .room-settings-header {
+            padding: 20px;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        .room-settings-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--bg-dark);
+        }
+        .settings-section {
+            margin-bottom: 25px;
+        }
+        .settings-section h3 {
+            color: var(--text-main);
+            margin-bottom: 15px;
+            font-size: 1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px;
+            background: var(--input-bg);
+            border-radius: 6px;
+        }
+        .settings-label {
+            color: var(--text-main);
+            font-size: 0.9rem;
+        }
+        .settings-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #666;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .toggle-switch.active {
+            background: var(--accent);
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+        .role-selector {
+            padding: 6px 10px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .btn-settings-save {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        .btn-settings-cancel {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        /* --- ENCRYPTION INDICATOR --- */
+        .encryption-indicator {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.7rem;
+            color: #28a745;
+            opacity: 0.7;
+        }
+        .encryption-broken {
+            color: #dc3545;
+        }
+
+        /* --- MOBILE RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .room-settings-container {
+                width: 95%;
+                max-height: 90vh;
+            }
+            .admin-controls {
+                opacity: 1;
+                position: static;
+                transform: none;
+                margin-top: 5px;
+            }
+            .private-chat-btn {
+                opacity: 1;
+                position: static;
+                transform: none;
+                margin-top: 5px;
+            }
+        }
+        @media (max-width: 600px) {
+            .sidebar { 
+                display: none; 
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 1000;
+                width: 250px;
+            }
+            .sidebar.mobile-open {
+                display: flex;
+            }
+            .chat-header { 
+                height: auto; 
+                padding: 10px; 
+                flex-wrap: wrap; 
+            }
+            #timer-watermark { font-size: 4rem; }
+            #sticker-panel { bottom: 60px; left: 10px; right: 10px; }
+            .room-settings-container {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+                max-height: none;
+            }
+            .mobile-menu-btn {
+                display: block;
+                background: var(--accent);
+                border: none;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 4px;
+                margin-right: 10px;
+            }
+        }
+        .mobile-menu-btn {
+            display: none;
+        }
+
+        /* --- ACCESSIBILITY --- */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            white-space: nowrap;
+            border: 0;
+        }
+        *:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        button:focus, input:focus, .btn-send:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        .user-item:focus-within {
+            background: rgba(255,255,255,0.05);
+        }
+        .msg-row:focus-within {
+            background: rgba(255,255,255,0.02);
+        }
+
         @media (max-width: 600px) {
             .sidebar { display: none; }
             .chat-header { height: auto; padding: 10px; flex-wrap: wrap; }
@@ -842,6 +1133,8 @@
             </div>
             
             <div class="header-right">
+                <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                <button class="btn-exit" id="settings-btn" onclick="openRoomSettings()" style="background: var(--accent); margin-right: 10px;">⚙️ Settings</button>
                 <div id="connection-badge" class="connection-badge">
                     <div class="status-dot"></div>
                     <span id="connection-text">Offline</span>
@@ -921,6 +1214,53 @@
         </div>
     </div>
 
+    <!-- ROOM SETTINGS MODAL -->
+    <div id="room-settings-modal">
+        <div class="room-settings-container">
+            <div class="room-settings-header">
+                <span>Room Settings</span>
+                <button onclick="closeRoomSettings()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">×</button>
+            </div>
+            <div class="room-settings-content">
+                <!-- General Settings -->
+                <div class="settings-section">
+                    <h3>General Settings</h3>
+                    <div class="settings-item">
+                        <span class="settings-label">End-to-End Encryption</span>
+                        <div class="settings-control">
+                            <div class="toggle-switch active" id="encryption-toggle" onclick="toggleEncryption()"></div>
+                        </div>
+                    </div>
+                    <div class="settings-item">
+                        <span class="settings-label">Allow File Sharing</span>
+                        <div class="settings-control">
+                            <div class="toggle-switch active" id="file-toggle" onclick="toggleFileSharing()"></div>
+                        </div>
+                    </div>
+                    <div class="settings-item">
+                        <span class="settings-label">Allow Stickers</span>
+                        <div class="settings-control">
+                            <div class="toggle-switch active" id="sticker-toggle" onclick="toggleStickers()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Management -->
+                <div class="settings-section">
+                    <h3>User Management</h3>
+                    <div id="user-management-list"></div>
+                </div>
+
+                <!-- Room Actions -->
+                <div class="settings-section">
+                    <h3>Room Actions</h3>
+                    <button class="btn-settings-save" onclick="saveRoomSettings()">Save Settings</button>
+                    <button class="btn-settings-cancel" onclick="closeRoomSettings()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const MQTT_HOST = "broker.emqx.io";
         const MQTT_PORT = 8084;
@@ -934,6 +1274,7 @@
         let isHost = false;
         let currentHost = "";
         let hostCheckTimeout = null;
+        let hostElectionActive = false;
 
         // User Management
         let activeUsers = {}; 
@@ -1018,6 +1359,7 @@
         const statusBadge = document.getElementById('connection-badge');
         const userCountEl = document.getElementById('user-count');
         const userDisplayEl = document.getElementById('user-display');
+        const settingsBtn = document.getElementById('settings-btn');
         
         // Timer DOM
         const timerWatermark = document.getElementById('timer-watermark');
@@ -1077,6 +1419,273 @@
         let messageIdCounter = 0;
         let messageHistory = {};
 
+        // --- NEW VARIABLES FOR ENHANCED FEATURES ---
+
+        // ENCRYPTION VARIABLES
+        let encryptionEnabled = true;
+        let roomEncryptionKey = '';
+        let userPublicKeys = {};
+
+        // ADMIN & MODERATION VARIABLES
+        let userRoles = {}; // 'admin', 'moderator', 'member'
+        let mutedUsers = {};
+        let kickedUsers = {};
+        let roomSettings = {
+            encryption: true,
+            fileSharing: true,
+            stickers: true,
+            maxUsers: 50
+        };
+
+        // RECONNECTION VARIABLES
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        let reconnectDelay = 1000;
+        let isReconnecting = false;
+
+        // MOBILE VARIABLES
+        let sidebarOpen = false;
+
+        // --- ENCRYPTION FUNCTIONS ---
+        
+        function generateEncryptionKey() {
+            return CryptoJS.lib.WordArray.random(256/8).toString();
+        }
+        
+        function encryptMessage(message, key) {
+            if (!encryptionEnabled || !key) return message;
+            try {
+                const encrypted = CryptoJS.AES.encrypt(message, key).toString();
+                return { encrypted: true, data: encrypted };
+            } catch(e) {
+                console.error('Encryption failed:', e);
+                return message;
+            }
+        }
+        
+        function decryptMessage(encryptedData, key) {
+            if (!encryptionEnabled || !key) return encryptedData;
+            try {
+                if (typeof encryptedData === 'object' && encryptedData.encrypted) {
+                    const decrypted = CryptoJS.AES.decrypt(encryptedData.data, key);
+                    return decrypted.toString(CryptoJS.enc.Utf8);
+                }
+                // Check if it's a string that looks like encrypted data
+                if (typeof encryptedData === 'string' && encryptedData.length > 50) {
+                    try {
+                        const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
+                        const result = decrypted.toString(CryptoJS.enc.Utf8);
+                        if (result) return result;
+                    } catch(e) {
+                        // If decryption fails, return original string
+                    }
+                }
+                return encryptedData;
+            } catch(e) {
+                console.error('Decryption failed:', e);
+                return '[Decryption Error]';
+            }
+        }
+        
+        function initializeEncryption() {
+            roomEncryptionKey = generateEncryptionKey();
+            renderSystemMessage("Encryption initialized.");
+        }
+        
+        // --- ADMIN & MODERATION FUNCTIONS ---
+        
+        function kickUser(username) {
+            if (!isHost && !isAdmin()) return;
+            
+            if (confirm(`Kick ${username} dari room?`)) {
+                publishMessage({
+                    type: 'user_kicked',
+                    user: currentUser,
+                    target: username,
+                    timestamp: Date.now()
+                });
+                
+                kickedUsers[username] = Date.now();
+                renderSystemMessage(`${username} telah di-kick dari room.`);
+                updateActiveUser(username, false);
+            }
+        }
+        
+        function muteUser(username) {
+            if (!isHost && !isAdmin()) return;
+            
+            const isMuted = mutedUsers[username];
+            if (isMuted) {
+                delete mutedUsers[username];
+                renderSystemMessage(`${username} telah di-unmute.`);
+            } else {
+                mutedUsers[username] = true;
+                renderSystemMessage(`${username} telah di-mute.`);
+            }
+            
+            publishMessage({
+                type: 'user_muted',
+                user: currentUser,
+                target: username,
+                muted: !isMuted
+            });
+            
+            updateUserList();
+        }
+        
+        function isAdmin() {
+            return userRoles[currentUser] === 'admin' || isHost;
+        }
+        
+        function isModerator() {
+            return userRoles[currentUser] === 'moderator' || isAdmin();
+        }
+        
+        function setUserRole(username, role) {
+            if (!isAdmin()) return;
+            
+            userRoles[username] = role;
+            publishMessage({
+                type: 'role_change',
+                user: currentUser,
+                target: username,
+                role: role
+            });
+            
+            updateUserList();
+            renderSystemMessage(`${username} sekarang adalah ${role}.`);
+        }
+        
+        function isUserMuted(username) {
+            return mutedUsers[username] === true;
+        }
+        
+        function isUserKicked(username) {
+            return kickedUsers[username] && (Date.now() - kickedUsers[username]) < 300000; // 5 minutes kick
+        }
+        
+        // --- ROOM SETTINGS FUNCTIONS ---
+        
+        function openRoomSettings() {
+            if (!isHost && !isAdmin()) {
+                alert('Hanya Host dan Admin yang bisa mengakses room settings.');
+                return;
+            }
+            
+            document.getElementById('room-settings-modal').style.display = 'flex';
+            loadUserManagement();
+        }
+        
+        function closeRoomSettings() {
+            document.getElementById('room-settings-modal').style.display = 'none';
+        }
+        
+        function loadUserManagement() {
+            const userList = document.getElementById('user-management-list');
+            userList.innerHTML = '';
+            
+            Object.keys(activeUsers).forEach(username => {
+                if (username === currentUser) return;
+                
+                const userItem = document.createElement('div');
+                userItem.className = 'settings-item';
+                userItem.innerHTML = `
+                    <span class="settings-label">
+                        ${username}
+                        ${userRoles[username] ? `<span class="user-role-badge role-${userRoles[username]}">${userRoles[username]}</span>` : ''}
+                        ${isUserMuted(username) ? '<span class="muted-indicator">🔇 Muted</span>' : ''}
+                    </span>
+                    <div class="settings-control">
+                        <select class="role-selector" onchange="setUserRole('${username}', this.value)">
+                            <option value="member" ${userRoles[username] === 'member' ? 'selected' : ''}>Member</option>
+                            <option value="moderator" ${userRoles[username] === 'moderator' ? 'selected' : ''}>Moderator</option>
+                            ${isAdmin() ? `<option value="admin" ${userRoles[username] === 'admin' ? 'selected' : ''}>Admin</option>` : ''}
+                        </select>
+                        <button class="admin-btn mute" onclick="muteUser('${username}')">${isUserMuted(username) ? 'Unmute' : 'Mute'}</button>
+                        <button class="admin-btn" onclick="kickUser('${username}')">Kick</button>
+                    </div>
+                `;
+                userList.appendChild(userItem);
+            });
+        }
+        
+        function toggleEncryption() {
+            const toggle = document.getElementById('encryption-toggle');
+            encryptionEnabled = !encryptionEnabled;
+            toggle.classList.toggle('active');
+            
+            if (encryptionEnabled) {
+                initializeEncryption();
+            }
+        }
+        
+        function toggleFileSharing() {
+            const toggle = document.getElementById('file-toggle');
+            roomSettings.fileSharing = !roomSettings.fileSharing;
+            toggle.classList.toggle('active');
+            
+            fileBtn.style.display = roomSettings.fileSharing ? 'block' : 'none';
+            privateFileBtn.style.display = roomSettings.fileSharing ? 'block' : 'none';
+        }
+        
+        function toggleStickers() {
+            const toggle = document.getElementById('sticker-toggle');
+            roomSettings.stickers = !roomSettings.stickers;
+            toggle.classList.toggle('active');
+            
+            stickerBtn.style.display = roomSettings.stickers ? 'block' : 'none';
+            privateStickerBtn.style.display = roomSettings.stickers ? 'block' : 'none';
+        }
+        
+        function saveRoomSettings() {
+            publishMessage({
+                type: 'settings_update',
+                user: currentUser,
+                settings: roomSettings
+            });
+            
+            renderSystemMessage('Room settings telah diperbarui.');
+            closeRoomSettings();
+        }
+        
+        // --- MOBILE FUNCTIONS ---
+        
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebarOpen = !sidebarOpen;
+            sidebar.classList.toggle('mobile-open', sidebarOpen);
+        }
+        
+        // --- ENHANCED RECONNECTION LOGIC ---
+        
+        function enhancedOnFailure() {
+            isConnected = false;
+            updateStatus('disconnected');
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            if (!isReconnecting && reconnectAttempts < maxReconnectAttempts) {
+                isReconnecting = true;
+                reconnectAttempts++;
+                
+                const delay = reconnectDelay * Math.pow(2, reconnectAttempts - 1); // Exponential backoff
+                renderSystemMessage(`Connection lost. Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`);
+                
+                setTimeout(() => {
+                    isReconnecting = false;
+                    startConnection();
+                }, delay);
+            } else if (reconnectAttempts >= maxReconnectAttempts) {
+                renderSystemMessage('Failed to reconnect. Please refresh the page.');
+            }
+        }
+        
+        function enhancedOnConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                enhancedOnFailure();
+            }
+        }
+        
         // --- CORE FUNCTIONS ---
 
         function generateRandomUsername() {
@@ -1109,6 +1718,9 @@
             document.getElementById('login-overlay').style.display = 'none';
             displayRoomId.textContent = currentRoom;
             updateActiveUser(currentUser, true);
+
+            // Initially hide settings button - will be shown when user becomes host/admin
+            settingsBtn.style.display = 'none';
 
             generateStickerGrid();
             startConnection();
@@ -1143,23 +1755,30 @@
             publishMessage({ type: 'join', user: currentUser });
             checkHostElection();
             
+            // Initialize encryption if enabled
+            if (encryptionEnabled) {
+                initializeEncryption();
+            }
+            
             messageInput.disabled = false;
             sendBtn.disabled = false;
             messageInput.focus();
         }
-
+        
         // --- HOST ELECTION ---
         function checkHostElection() {
+            hostElectionActive = true;
             publishMessage({ type: 'host_query', user: currentUser });
             // Only become host if no other host responds within 1.5 seconds
             hostCheckTimeout = setTimeout(() => { 
                 // Check if there's already a host before becoming host
-                if (!currentHost) {
+                if (!currentHost && !isHost && hostElectionActive) {
                     becomeHost(); 
                 }
+                hostElectionActive = false;
             }, 1500);
         }
-
+        
         function becomeHost() {
             isHost = true; currentHost = currentUser;
             timerControls.classList.remove('disabled');
@@ -1169,8 +1788,14 @@
             publishMessage({ type: 'announce_host', user: currentUser });
             updateUserListHostBadge(currentUser, true);
             updateStatus('host'); // Update user display
+            
+            // Show settings button for host
+            settingsBtn.style.display = 'block';
+            
+            // Re-render user list so all rows get admin controls for the new host
+            updateUserList();
         }
-
+        
         function becomeGuest(hostName) {
             isHost = false; currentHost = hostName;
             timerControls.classList.add('disabled');
@@ -1180,22 +1805,21 @@
             renderSystemMessage(`Host: ${hostName}.`);
             updateUserListHostBadge(hostName, true);
             updateStatus('guest'); // Update user display
-        }
-
-        function onFailure() {
-            isConnected = false; updateStatus('disconnected');
-            messageInput.disabled = true; sendBtn.disabled = true;
-            setTimeout(startConnection, 3000);
-        }
-
-        function onConnectionLost(responseObject) {
-            if (responseObject.errorCode !== 0) {
-                isConnected = false; updateStatus('disconnected');
-                messageInput.disabled = true; sendBtn.disabled = true;
-                setTimeout(startConnection, 3000);
+            
+            // Hide settings button for regular users (only show for host/admin)
+            if (!isAdmin()) {
+                settingsBtn.style.display = 'none';
             }
         }
-
+        
+        function onFailure() {
+            enhancedOnFailure();
+        }
+        
+        function onConnectionLost(responseObject) {
+            enhancedOnConnectionLost(responseObject);
+        }
+        
         function publishMessage(payloadObj) {
             if (!isConnected || !client) return;
             const topic = "anonchat/room/" + currentRoom;
@@ -1203,88 +1827,214 @@
             message.destinationName = topic;
             try { client.send(message); } catch(e){}
         }
-
+        
         function onMessageArrived(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
+                
 
                 if (payload.user === currentUser || payload.from === currentUser) return;
 
-                // 1. HOST PROTOCOL
+                // 0. ENCRYPTION & KEY EXCHANGE
+                if (payload.type === 'key_exchange') {
+                    if (!roomEncryptionKey && payload.key) {
+                        roomEncryptionKey = payload.key;
+                        renderSystemMessage("Encryption key received.");
+                    }
+                    return;
+                }
+
+                // 1. ADMIN & MODERATION PROTOCOLS
+                if (payload.type === 'user_kicked') {
+                    if (payload.target === currentUser) {
+                        renderSystemMessage("Anda telah di-kick dari room!");
+                        setTimeout(() => cleanAndExit(), 2000);
+                    } else {
+                        renderSystemMessage(`${payload.target} telah di-kick.`);
+                        updateActiveUser(payload.target, false);
+                    }
+                    return;
+                }
+                else if (payload.type === 'user_muted') {
+                    mutedUsers[payload.target] = payload.muted;
+                    if (payload.target === currentUser) {
+                        renderSystemMessage(payload.muted ? "Anda telah di-mute." : "Anda telah di-unmute.");
+                        messageInput.disabled = payload.muted;
+                        sendBtn.disabled = payload.muted;
+                    } else {
+                        renderSystemMessage(`${payload.target} telah di-${payload.muted ? 'mute' : 'unmute'}.`);
+                    }
+                    updateUserList();
+                    return;
+                }
+                else if (payload.type === 'role_change') {
+                    userRoles[payload.target] = payload.role;
+                    if (payload.target === currentUser) {
+                        renderSystemMessage(`Anda sekarang adalah ${payload.role}.`);
+                        
+                        // Update settings button visibility based on new role
+                        if (payload.role === 'admin' || payload.role === 'moderator') {
+                            settingsBtn.style.display = 'block';
+                        } else if (payload.role === 'member' && !isHost) {
+                            settingsBtn.style.display = 'none';
+                        }
+                    }
+                    updateUserList();
+                    return;
+                }
+                else if (payload.type === 'settings_update') {
+                    roomSettings = { ...roomSettings, ...payload.settings };
+                    renderSystemMessage("Room settings telah diperbarui.");
+                    return;
+                }
+
+                // 2. HOST PROTOCOL
                 if (payload.type === 'host_query') {
-                    if (isHost) publishMessage({ type: 'announce_host', user: currentUser });
+                    // Only respond if we are the host and this is not our own query
+                    if (isHost && payload.user !== currentUser) {
+                        publishMessage({ type: 'announce_host', user: currentUser });
+                    }
                 }
                 else if (payload.type === 'announce_host') {
                     clearTimeout(hostCheckTimeout);
+                    hostElectionActive = false;
                     if (!isHost && currentHost !== payload.user) becomeGuest(payload.user);
                     updateUserListHostBadge(payload.user, true);
                 }
 
-                // 2. TIMER PROTOCOL
+                // 3. TIMER PROTOCOL
                 else if (payload.type === 'timer_start') { startSyncTimer(payload.endTime); }
                 else if (payload.type === 'timer_tick') { updateTimerUI(payload.remaining, true); }
                 else if (payload.type === 'timer_end') { forceKickout(); }
 
-                // 3. CONTENT PROTOCOLS (GLOBAL CHAT)
+                // 4. CONTENT PROTOCOLS (GLOBAL CHAT) - WITH ENCRYPTION
                 else if (payload.type === 'chat') {
+                    if (isUserMuted(payload.user)) return;
                     if (payload.id) messageHistory[payload.id] = payload;
-                    renderChatMessage(payload.user, payload.text, payload.time, false, payload.replyTo);
+                    let displayText = payload.text;
+                    
+                    // Check if user can see decrypted content
+                    if (payload.encrypted && payload.mentions) {
+                        const canSeeDecrypted = payload.mentions.includes(currentUser) || 
+                                               (payload.replyTo && payload.replyTo.user === currentUser) ||
+                                               payload.user === currentUser;
+                        
+                        if (canSeeDecrypted) {
+                            let decryptedText = decryptMessage(payload.text, roomEncryptionKey);
+                            if (typeof decryptedText === 'object' && decryptedText.encrypted) {
+                                decryptedText = '[Decryption Error]';
+                            }
+                            displayText = decryptedText;
+                        } else {
+                            displayText = '[Encrypted Message]';
+                        }
+                    }
+                    
+                    renderChatMessage(payload.user, displayText, payload.time, false, payload.replyTo);
                 }
+                // Reply messages use same rendering/encryption rules as chat
                 else if (payload.type === 'reply') {
+                    if (isUserMuted(payload.user)) return;
                     if (payload.id) messageHistory[payload.id] = payload;
-                    renderChatMessage(payload.user, payload.text, payload.time, false, payload.replyTo);
+                    let displayText = payload.text;
+                    
+                    if (payload.encrypted && payload.mentions) {
+                        const canSeeDecrypted = payload.mentions.includes(currentUser) || 
+                                               (payload.replyTo && payload.replyTo.user === currentUser) ||
+                                               payload.user === currentUser;
+                        
+                        if (canSeeDecrypted) {
+                            let decryptedText = decryptMessage(payload.text, roomEncryptionKey);
+                            if (typeof decryptedText === 'object' && decryptedText.encrypted) {
+                                decryptedText = '[Decryption Error]';
+                            }
+                            displayText = decryptedText;
+                        } else {
+                            displayText = '[Encrypted Message]';
+                        }
+                    }
+                    
+                    renderChatMessage(payload.user, displayText, payload.time, false, payload.replyTo);
                 }
                 else if (payload.type === 'sticker') {
+                    if (isUserMuted(payload.user) || !roomSettings.stickers) return;
                     renderStickerMessage(payload.user, payload.content, payload.time, false);
                 }
                 else if (payload.type === 'file') {
+                    if (isUserMuted(payload.user) || !roomSettings.fileSharing) return;
                     renderFileMessage(payload, false);
                 }
 
-                // 3b. PRIVATE CHAT
+                // 5. PRIVATE CHAT
                 else if (payload.type === 'private_chat') {
                     if (payload.to === currentUser) {
-                        renderPrivateMessage(payload.from, payload.text, payload.time, false);
+                        let displayText = payload.text;
+                        
+                        // Check if user can see decrypted content
+                        if (payload.encrypted && payload.mentions) {
+                            const canSeeDecrypted = payload.mentions.includes(currentUser) || 
+                                                   (payload.replyTo && payload.replyTo.from === currentUser) ||
+                                                   payload.from === currentUser;
+                            
+                            if (canSeeDecrypted) {
+                                let decryptedText = decryptMessage(payload.text, roomEncryptionKey);
+                                if (typeof decryptedText === 'object' && decryptedText.encrypted) {
+                                    decryptedText = '[Decryption Error]';
+                                }
+                                displayText = decryptedText;
+                            } else {
+                                displayText = '[Encrypted Message]';
+                            }
+                        }
+                        
+                        renderPrivateMessage(payload.from, displayText, payload.time, false);
                         if (!privateChatHistory[payload.from]) privateChatHistory[payload.from] = [];
                         privateChatHistory[payload.from].push(payload);
-                        if (privateChatModal.style.display !== 'flex' || currentPrivateChatUser !== payload.from) {
-                            showUserNotification(payload.from);
-                        }
-                    }
-                }
-                else if (payload.type === 'private_sticker') {
-                    if (payload.to === currentUser) {
-                        renderPrivateStickerMessage(payload.from, payload.content, payload.time, false);
-                        if (!privateChatHistory[payload.from]) privateChatHistory[payload.from] = [];
-                        privateChatHistory[payload.from].push(payload);
-                        if (privateChatModal.style.display !== 'flex' || currentPrivateChatUser !== payload.from) {
-                            showUserNotification(payload.from);
-                        }
+                        
+                        // Hanya tampilkan badge notifikasi, jangan auto-buka modal
+                        showUserNotification(payload.from);
                     }
                 }
                 else if (payload.type === 'private_file') {
-                    if (payload.to === currentUser) {
+                    if (payload.to === currentUser && roomSettings.fileSharing) {
                         renderPrivateFileMessage(payload, false);
                         if (!privateChatHistory[payload.from]) privateChatHistory[payload.from] = [];
                         privateChatHistory[payload.from].push(payload);
-                        if (privateChatModal.style.display !== 'flex' || currentPrivateChatUser !== payload.from) {
-                            showUserNotification(payload.from);
-                        }
+                        
+                        // Hanya tampilkan badge notifikasi, jangan auto-buka modal
+                        showUserNotification(payload.from);
                     }
                 }
 
-                // 4. PRESENCE
+                // 6. PRESENCE
                 else if (payload.type === 'join') {
+                    if (isUserKicked(payload.user)) {
+                        publishMessage({ type: 'user_kicked', user: currentUser, target: payload.user });
+                        return;
+                    }
+                    
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
                     publishMessage({ type: 'presence', user: currentUser });
+                    
                     if (isHost && timerRunning) {
                         const remaining = timerEndTime - Date.now();
                         publishMessage({ type: 'timer_tick', remaining: remaining > 0 ? remaining : 0 });
                     }
+                    
+                    // Send encryption key to new user
+                    if (roomEncryptionKey && encryptionEnabled) {
+                        publishMessage({
+                            type: 'key_exchange',
+                            user: currentUser,
+                            key: roomEncryptionKey
+                        });
+                    }
                 }
                 else if (payload.type === 'presence') {
-                    updateActiveUser(payload.user, true);
+                    if (!isUserKicked(payload.user)) {
+                        updateActiveUser(payload.user, true);
+                    }
                 }
                 else if (payload.type === 'leave') {
                     updateActiveUser(payload.user, false);
@@ -1305,8 +2055,6 @@
         }
 
         // --- FILE HANDLING (LOGIC BARU) ---
-
-        // Global chat file button → open file picker
         fileBtn.addEventListener('click', () => {
             fileInput.click();
         });
@@ -1527,7 +2275,7 @@
 
         function sendMessage() {
             const text = messageInput.value.trim();
-            if(!text || !isConnected) return;
+            if(!text || !isConnected || isUserMuted(currentUser)) return;
             
             // If we're in mention mode and Enter is pressed, handle mention selection first
             if (isMentionMode && selectedMentionIndex >= 0) {
@@ -1536,11 +2284,29 @@
             }
             
             messageIdCounter++;
+            
+            // Encrypt message if encryption is enabled and message contains mention
+            let shouldEncrypt = encryptionEnabled && text.includes('@');
+            let encryptedText = text;
+            let mentions = [];
+            
+            // Extract mentioned usernames
+            if (shouldEncrypt) {
+                const mentionRegex = /@(\w+)/g;
+                let match;
+                while ((match = mentionRegex.exec(text)) !== null) {
+                    mentions.push(match[1]);
+                }
+                encryptedText = encryptMessage(text, roomEncryptionKey);
+            }
+            
             const msg = {
                 id: messageIdCounter,
                 type: replyToMessage ? 'reply' : 'chat', 
                 user: currentUser, 
-                text: text,
+                text: shouldEncrypt && encryptedText.encrypted ? encryptedText.data : encryptedText,
+                mentions: mentions,
+                encrypted: shouldEncrypt,
                 time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
             };
             
@@ -1769,6 +2535,19 @@
 
         // --- UI HELPERS ---
 
+        function updateUserList() {
+            // Refresh the entire user list to show updated roles and mute status
+            Object.keys(activeUsers).forEach(username => {
+                const userItem = document.getElementById('user-item-' + username);
+                if (userItem) {
+                    userItem.remove();
+                }
+                if (username !== currentUser) {
+                    renderUserToList(username);
+                }
+            });
+        }
+
         function updateActiveUser(username, isOnline) {
             if (isOnline) {
                 if (!activeUsers[username]) {
@@ -1793,6 +2572,13 @@
             const color = userColors[username] || getRandomColor();
             userColors[username] = color;
             const initial = username.substring(0,2).toUpperCase();
+            
+            const isMuted = isUserMuted(username);
+            const userRole = userRoles[username] || 'member';
+            const canModerate = isHost || isAdmin();
+
+            // Jika bukan host/admin, geser tombol private chat lebih ke kanan
+            const privateBtnStyle = canModerate ? '' : 'style="right: 20px"';
 
             const div = document.createElement('div');
             div.className = 'user-item';
@@ -1801,11 +2587,20 @@
                 <div class="user-avatar" style="background: ${color}">${initial}</div>
                 <div class="user-info">
                     <div class="user-name" id="name-${username}">
-                        ${username} <span class="host-badge" id="host-badge-${username}" style="display:none">👑</span>
+                        ${username} 
+                        <span class="host-badge" id="host-badge-${username}" style="display:none">👑</span>
+                        ${userRole !== 'member' ? `<span class="user-role-badge role-${userRole}">${userRole}</span>` : ''}
+                        ${isMuted ? '<span class="muted-indicator">🔇</span>' : ''}
                     </div>
                     <div class="user-status-text">Online</div>
                 </div>
-                <button class="private-chat-btn" onclick="openPrivateChatModal('${username}')">@</button>
+                <button class="private-chat-btn" ${privateBtnStyle} onclick="openPrivateChatModal('${username}')">@</button>
+                ${canModerate ? `
+                    <div class="admin-controls">
+                        <button class="admin-btn mute" onclick="muteUser('${username}')" title="${isMuted ? 'Unmute' : 'Mute'}">${isMuted ? '🔊' : '🔇'}</button>
+                        <button class="admin-btn" onclick="kickUser('${username}')" title="Kick">🚫</button>
+                    </div>
+                ` : ''}
                 <div class="status-dot"></div>
             `;
             userListEl.appendChild(div);
@@ -1917,11 +2712,28 @@
             const text = privateChatInput.value.trim();
             if (!text || !isConnected || !currentPrivateChatUser) return;
 
+            // Encrypt message if encryption is enabled and message contains mention
+            let shouldEncrypt = encryptionEnabled && text.includes('@');
+            let encryptedText = text;
+            let mentions = [];
+            
+            // Extract mentioned usernames
+            if (shouldEncrypt) {
+                const mentionRegex = /@(\w+)/g;
+                let match;
+                while ((match = mentionRegex.exec(text)) !== null) {
+                    mentions.push(match[1]);
+                }
+                encryptedText = encryptMessage(text, roomEncryptionKey);
+            }
+
             const msg = {
                 type: 'private_chat',
                 from: currentUser,
                 to: currentPrivateChatUser,
-                text: text,
+                text: shouldEncrypt && encryptedText.encrypted ? encryptedText.data : encryptedText,
+                mentions: mentions,
+                encrypted: shouldEncrypt,
                 time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
             };
 
