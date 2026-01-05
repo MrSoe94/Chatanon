@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Private Chat Anonymous (Fixed Room)</title>
+    <title>Private Chat Anonymous</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
@@ -2926,6 +2926,14 @@
         // Add event listener for private chat send button
         document.querySelector('.private-chat-send').addEventListener('click', sendPrivateMessage);
 
+        // Add event listener for sticker button
+        stickerBtn.addEventListener('click', toggleStickerPanel);
+
+        // Add event listener for private chat sticker button
+        privateStickerBtn.addEventListener('click', () => {
+            privateStickerPanel.classList.toggle('show');
+        });
+
         // Close suggestions and private chat modal when clicking outside
         document.addEventListener('click', (e) => {
             // Handle mention suggestions
@@ -3166,6 +3174,11 @@
             document.addEventListener('click', (e) => {
                 if (!stickerPanel.contains(e.target) && !stickerBtn.contains(e.target)) {
                     stickerPanel.classList.remove('show');
+                }
+                
+                // Close private sticker panel when clicking outside
+                if (privateStickerPanel && !privateStickerPanel.contains(e.target) && !privateStickerBtn.contains(e.target)) {
+                    privateStickerPanel.classList.remove('show');
                 }
             });
 
