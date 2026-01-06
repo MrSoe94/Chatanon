@@ -219,12 +219,16 @@
         }
         
         .msg-row { display: flex; gap: 10px; animation: popIn 0.2s ease; width: 100%; }
+        .msg-row.highlight-replied {
+            background-color: rgba(0, 168, 132, 0.15);
+            border-radius: 8px;
+        }
         @keyframes popIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
         .msg-avatar {
             width: 36px; height: 36px; border-radius: 50%;
-            background: #444; display: flex; align-items: center;
-            justify-content: center; font-size: 0.9rem; flex-shrink: 0;
+            background: #444; display: flex;
+            align-items: center; justify-content: center; font-size: 0.9rem;
             font-weight: bold; color: #fff;
         }
         .msg-content { max-width: 70%; display: flex; flex-direction: column; position: relative; }
@@ -1957,7 +1961,7 @@
                         }
                     }
                     
-                    renderChatMessage(payload.user, displayText, payload.time, false, payload.replyTo);
+                    renderChatMessage(payload.user, displayText, payload.time, false, payload.replyTo, payload.id);
                 }
                 // Reply messages use same rendering/encryption rules as chat
                 else if (payload.type === 'reply') {
@@ -2405,7 +2409,7 @@
             }
             
             publishMessage(msg);
-            renderChatMessage(currentUser, text, msg.time, true, replyToMessage);
+            renderChatMessage(currentUser, text, msg.time, true, replyToMessage, msg.id);
             
             // Store message in history
             messageHistory[msg.id] = msg;
@@ -2416,9 +2420,13 @@
             isMentionMode = false;
         }
 
-        function renderChatMessage(user, text, time, isMe, replyTo) {
+        function renderChatMessage(user, text, time, isMe, replyTo, messageId) {
+            const id = (typeof messageId === 'number' || typeof messageId === 'string') ? messageId : messageIdCounter;
+
             const row = document.createElement('div');
             row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+            row.id = `msg-${id}`;
+
             const avatarColor = userColors[user] || '#777';
             const initial = user.substring(0,2).toUpperCase();
             const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -2440,11 +2448,48 @@
                     ${quotedMessageHTML}
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${time}</span>
-                    <button class="reply-button" onclick="startReply(${JSON.stringify({id: messageIdCounter, user: user, text: text}).replace(/"/g, '&quot;')})">Reply</button>
+                    <button class="reply-button" onclick="startReply(${JSON.stringify({id: id, user: user, text: text}).replace(/"/g, '&quot;')})">Reply</button>
                 </div>
             `;
             messagesArea.appendChild(row);
             messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function startReply(message) {
+            // message: { id, user, text }
+            replyToMessage = {
+                id: message.id,
+                user: message.user,
+                text: message.text
+            };
+
+            if (replyPreview) {
+                replyPreviewAuthor.textContent = message.user;
+                replyPreviewText.textContent = message.text;
+                replyPreview.style.display = 'flex';
+            }
+
+            if (messageInput) {
+                messageInput.focus();
+            }
+        }
+
+        function cancelReply() {
+            replyToMessage = null;
+            if (replyPreview) {
+                replyPreview.style.display = 'none';
+            }
+        }
+
+        function scrollToMessage(messageId) {
+            const el = document.getElementById(`msg-${messageId}`);
+            if (!el || !messagesArea) return;
+
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('highlight-replied');
+            setTimeout(() => {
+                el.classList.remove('highlight-replied');
+            }, 1500);
         }
 
         // --- TIMER LOGIC ---
