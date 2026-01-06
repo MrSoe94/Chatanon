@@ -887,6 +887,167 @@
     color: white;
 }
 
+.user-role-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 6px;
+}
+
+.mention-suggestions.show {
+    display: block;
+    animation: slideUp 0.2s ease;
+}
+.mention-item {
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.mention-item:last-child {
+    border-bottom: none;
+}
+.mention-item:hover,
+.mention-item.selected {
+    background: rgba(255,255,255,0.1);
+}
+.mention-item.selected {
+    background: var(--accent);
+}
+.mention-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: white;
+}
+.mention-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.mention-host {
+    color: var(--host-gold);
+    margin-left: 5px;
+}
+
+/* --- QUOTED MESSAGES --- */
+.quoted-message {
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid var(--accent);
+    padding: 8px 10px;
+    margin: 4px 0 8px 0;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.quoted-message:hover {
+    background: rgba(255,255,255,0.08);
+}
+.quoted-author {
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+    font-size: 0.75rem;
+}
+.quoted-text {
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+.reply-indicator {
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-top: 2px;
+}
+.reply-button {
+    position: absolute;
+    opacity: 0;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+    top: -5px;
+    right: 5px;
+    z-index: 10;
+}
+.reply-button:hover {
+    background: #008f6f;
+}
+.msg-row:hover .reply-button {
+    opacity: 1;
+}
+.reply-preview {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+}
+.reply-preview-content {
+    flex: 1;
+}
+.reply-preview-author {
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 2px;
+}
+.reply-preview-text {
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cancel-reply {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+.cancel-reply:hover {
+    background: rgba(255,255,255,0.1);
+}
+.muted-indicator {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 6px;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
         /* --- ROOM SETTINGS MODAL --- */
         #room-settings-modal {
             display: none;
@@ -1180,6 +1341,7 @@
                     <span id="connection-text">Offline</span>
                 </div>
                 <div id="user-display" style="color: var(--text-muted); font-size: 0.75rem;"></div>
+                <button id="self-mute-btn" class="admin-btn mute" onclick="muteSelf()" style="display: none; padding: 4px 8px; font-size: 0.7rem; margin-right: 10px;">Mute</button>
                 <button class="btn-exit" onclick="cleanAndExit()">EXIT</button>
             </div>
         </header>
@@ -1294,6 +1456,7 @@
                 <!-- Room Actions -->
                 <div class="settings-section">
                     <h3>Room Actions</h3>
+                    <button class="btn-settings-save" style="background: #c0392b; border-color: #c0392b;" onclick="kickAllUsers()">Kick Semua User</button>
                     <button class="btn-settings-save" onclick="saveRoomSettings()">Save Settings</button>
                     <button class="btn-settings-cancel" onclick="closeRoomSettings()">Cancel</button>
                 </div>
@@ -1402,6 +1565,7 @@
         let userCountEl = document.getElementById('user-count');
         let userDisplayEl = document.getElementById('user-display');
         let settingsBtn = document.getElementById('settings-btn');
+        let selfMuteBtn = document.getElementById('self-mute-btn');
         
         // Timer DOM
         let timerWatermark = document.getElementById('timer-watermark');
@@ -1474,6 +1638,34 @@
             }
         }
 
+        function encryptMessage(text, key) {
+            if (!key || !text) return text;
+            try {
+                const encrypted = CryptoJS.AES.encrypt(text, key).toString();
+                return { encrypted: true, data: encrypted };
+            } catch (e) {
+                console.error('Encryption error:', e);
+                return text;
+            }
+        }
+
+        function decryptMessage(encryptedData, key) {
+            if (!key || !encryptedData) return encryptedData;
+            try {
+                if (typeof encryptedData === 'object' && encryptedData.encrypted) {
+                    const decrypted = CryptoJS.AES.decrypt(encryptedData.data, key);
+                    return decrypted.toString(CryptoJS.enc.Utf8);
+                } else if (typeof encryptedData === 'string') {
+                    const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
+                    return decrypted.toString(CryptoJS.enc.Utf8);
+                }
+                return encryptedData;
+            } catch (e) {
+                console.error('Decryption error:', e);
+                return { encrypted: true, data: '[Decryption Error]' };
+            }
+        }
+
         // ADMIN & MODERATION VARIABLES
         let userRoles = {}; // 'admin', 'moderator', 'member'
         let mutedUsers = {};
@@ -1492,6 +1684,53 @@
             return role === 'admin' || role === 'moderator';
         }
 
+        // ADMIN ACTION HELPERS
+        function muteUser(username) {
+            // Hanya host/admin/moderator yang boleh mute
+            if (!isHost && !isAdmin()) return;
+            if (!username) return;
+            
+            const currentlyMuted = !!mutedUsers[username];
+            const newMutedState = !currentlyMuted;
+            
+            // Host tidak bisa di-mute oleh user lain (tapi host bisa mute/unmute diri sendiri)
+            if (userRoles[username] === 'host' && username !== currentUser) {
+                renderSystemMessage('Host tidak bisa di-mute oleh user lain.');
+                return;
+            }
+
+            publishMessage({
+                type: 'user_muted',
+                user: currentUser,
+                target: username,
+                muted: newMutedState
+            });
+
+            // Beri feedback lokal ke admin
+            renderSystemMessage(`${username} ${newMutedState ? 'di-mute' : 'di-unmute'} oleh Anda.`);
+            updateUserList();
+        }
+
+        function kickUser(username) {
+            // Hanya host/admin/moderator yang boleh kick
+            if (!isHost && !isAdmin()) return;
+            if (!username || username === currentUser) return;
+
+            publishMessage({
+                type: 'user_kicked',
+                user: currentUser,
+                target: username
+            });
+
+            renderSystemMessage(`${username} di-kick oleh Anda.`);
+        }
+
+        function muteSelf() {
+            // Fungsi untuk host mute diri sendiri
+            if (!isHost) return;
+            muteUser(currentUser);
+        }
+
         let roomSettings = {
             encryption: true,
             fileSharing: true,
@@ -1503,6 +1742,7 @@
         function openRoomSettings() {
             const modal = document.getElementById('room-settings-modal');
             if (!modal) return;
+            renderUserManagementList();
             modal.style.display = 'flex';
         }
 
@@ -1510,6 +1750,88 @@
             const modal = document.getElementById('room-settings-modal');
             if (!modal) return;
             modal.style.display = 'none';
+        }
+
+        function saveRoomSettings() {
+            // Hanya host/admin/moderator yang boleh ubah pengaturan room
+            if (!isHost && !isAdmin()) return;
+
+            const encryptionToggle = document.getElementById('encryption-toggle');
+            const fileToggle = document.getElementById('file-toggle');
+            const stickerToggle = document.getElementById('sticker-toggle');
+
+            if (!encryptionToggle || !fileToggle || !stickerToggle) return;
+
+            const newSettings = {
+                encryption: encryptionToggle.classList.contains('active'),
+                fileSharing: fileToggle.classList.contains('active'),
+                stickers: stickerToggle.classList.contains('active')
+            };
+
+            // Update lokal
+            roomSettings = { ...roomSettings, ...newSettings };
+
+            // Broadcast ke semua user di room
+            publishMessage({
+                type: 'settings_update',
+                user: currentUser,
+                settings: newSettings
+            });
+
+            renderSystemMessage('Room settings disimpan.');
+            closeRoomSettings();
+        }
+
+        function toggleEncryption() {
+            // Hanya host/admin/moderator yang boleh ubah pengaturan
+            if (!isHost && !isAdmin()) return;
+            
+            const toggle = document.getElementById('encryption-toggle');
+            if (!toggle) return;
+            
+            toggle.classList.toggle('active');
+            encryptionEnabled = toggle.classList.contains('active');
+            
+            renderSystemMessage(`Encryption ${encryptionEnabled ? 'enabled' : 'disabled'}.`);
+        }
+
+        function toggleFileSharing() {
+            // Hanya host/admin/moderator yang boleh ubah pengaturan
+            if (!isHost && !isAdmin()) return;
+            
+            const toggle = document.getElementById('file-toggle');
+            if (!toggle) return;
+            
+            toggle.classList.toggle('active');
+            roomSettings.fileSharing = toggle.classList.contains('active');
+            
+            renderSystemMessage(`File sharing ${roomSettings.fileSharing ? 'enabled' : 'disabled'}.`);
+        }
+
+        function toggleStickers() {
+            // Hanya host/admin/moderator yang boleh ubah pengaturan
+            if (!isHost && !isAdmin()) return;
+            
+            const toggle = document.getElementById('sticker-toggle');
+            if (!toggle) return;
+            
+            toggle.classList.toggle('active');
+            roomSettings.stickers = toggle.classList.contains('active');
+            
+            renderSystemMessage(`Stickers ${roomSettings.stickers ? 'enabled' : 'disabled'}.`);
+        }
+
+        function kickAllUsers() {
+            const usernames = Object.keys(activeUsers).filter(u => u !== currentUser);
+            if (!usernames.length) return;
+
+            if (!confirm('Yakin ingin meng-kick semua user lain dari room?')) return;
+
+            usernames.forEach(username => {
+                kickUser(username);
+            });
+
+            renderSystemMessage('Perintah kick semua user telah dikirim.');
         }
 
         // RECONNECTION VARIABLES
@@ -1735,6 +2057,10 @@
                 }
                 else if (payload.type === 'user_muted') {
                     mutedUsers[payload.target] = payload.muted;
+                    console.log('DEBUG: user_muted received', payload);
+                    console.log('DEBUG: mutedUsers now', mutedUsers);
+                    console.log('DEBUG: isUserMuted check', isUserMuted(payload.target));
+                    
                     if (payload.target === currentUser) {
                         renderSystemMessage(payload.muted ? "Anda telah di-mute." : "Anda telah di-unmute.");
                         messageInput.disabled = payload.muted;
@@ -1889,6 +2215,11 @@
                     if (isUserKicked(payload.user)) {
                         publishMessage({ type: 'user_kicked', user: currentUser, target: payload.user });
                         return;
+                    }
+                    
+                    // Set role default untuk user yang bergabung
+                    if (!userRoles[payload.user]) {
+                        userRoles[payload.user] = 'member';
                     }
                     
                     updateActiveUser(payload.user, true);
@@ -2458,6 +2789,12 @@
                     userCountEl.textContent = Object.keys(activeUsers).length;
                 }
             }
+
+            // Jika Room Settings sedang terbuka, refresh juga daftar User Management
+            const roomSettingsModal = document.getElementById('room-settings-modal');
+            if (roomSettingsModal && roomSettingsModal.style.display === 'flex') {
+                renderUserManagementList();
+            }
         }
 
         function renderUserToList(username) {
@@ -2471,52 +2808,45 @@
             const isMuted = isUserMuted(username);
             const userRole = userRoles[username] || 'member';
             const canModerate = isHost || isAdmin();
+            const canMuteUser = canModerate && userRole !== 'host'; // Host tidak bisa di-mute oleh user lain
+            const buttonText = isMuted ? 'Unmute' : 'Mute';
+            
+            // Tampilkan mute indicator untuk host yang sedang di-mute (termasuk diri sendiri)
+            const showMuteIndicator = isMuted && (username !== currentHost || username === currentUser);
+            
+            console.log('DEBUG: renderUserToList for', username, 'isMuted:', isMuted, 'mutedUsers:', mutedUsers);
+            console.log('DEBUG: userRoles:', userRoles);
+            console.log('DEBUG: canModerate:', canModerate, 'canMuteUser:', canMuteUser);
+            console.log('DEBUG: Button text should be:', buttonText);
+            console.log('DEBUG: Final button text for', username, ':', buttonText);
 
-            // Jika bukan host/admin, geser tombol private chat lebih ke kanan
-            const privateBtnStyle = canModerate ? '' : 'style="right: 20px"';
-
-            const div = document.createElement('div');
-            div.className = 'user-item';
-            div.id = 'user-item-' + username;
-            div.innerHTML = `
+            // Create user item HTML
+            const userItem = document.createElement('div');
+            userItem.id = 'user-item-' + username;
+            userItem.className = 'user-item';
+            
+            userItem.innerHTML = `
                 <div class="user-avatar" style="background: ${color}">${initial}</div>
                 <div class="user-info">
-                    <div class="user-name" id="name-${username}">
-                        ${username} 
-                        <span class="host-badge" id="host-badge-${username}" style="display:none">👑</span>
+                    <div class="user-name">
+                        ${username}
+                        ${username === currentHost ? '<span class="host-badge">👑</span>' : ''}
                         ${userRole !== 'member' ? `<span class="user-role-badge role-${userRole}">${userRole}</span>` : ''}
-                        ${isMuted ? '<span class="muted-indicator">🔇 Muted</span>' : ''}
+                        ${showMuteIndicator ? '<span class="muted-indicator" style="background: rgba(255, 193, 7, 0.2) !important; color: #ffc107 !important; padding: 2px 6px !important; border-radius: 4px !important; font-size: 0.7rem !important; font-weight: 600 !important; margin-left: 6px !important; border: 1px solid rgba(255, 193, 7, 0.3) !important; display: inline-flex !important; align-items: center !important; gap: 3px !important;">🔇</span>' : ''}
                     </div>
                     <div class="user-status-text">Online</div>
                 </div>
-                <button class="private-chat-btn" ${privateBtnStyle} onclick="openPrivateChatModal('${username}')">@</button>
-                ${canModerate ? `
+                <button class="private-chat-btn" ${canModerate ? '' : 'style="right: 20px"'} onclick="openPrivateChatModal('${username}')">💬</button>
+                <div class="user-notification-badge"></div>
+                ${canMuteUser ? `
                     <div class="admin-controls">
-                        <button class="admin-btn mute" onclick="muteUser('${username}')">${isMuted ? 'Unmute' : 'Mute'}</button>
+                        <button class="admin-btn mute" onclick="muteUser('${username}')">${buttonText}</button>
                         <button class="admin-btn" onclick="kickUser('${username}')">Kick</button>
                     </div>
                 ` : ''}
-                <div class="status-dot"></div>
             `;
-            userListEl.appendChild(div);
-        }
-
-        function updateUserListHostBadge(username, isHost) {
-            const badge = document.getElementById('host-badge-' + username);
-            if(badge) { badge.style.display = isHost ? 'inline-block' : 'none'; }
-        }
-
-        function showNotification() {
-            notificationCount++;
-            if (!notificationBadge) {
-                notificationBadge = document.createElement('div');
-                notificationBadge.className = 'notification-badge';
-                notificationBadge.textContent = notificationCount;
-                document.querySelector('.header-right').appendChild(notificationBadge);
-            } else {
-                notificationBadge.textContent = notificationCount;
-            }
-            notificationBadge.style.display = 'flex';
+            
+            userListEl.appendChild(userItem);
         }
 
         function showUserNotification(username) {
@@ -2867,6 +3197,47 @@
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
         }
 
+        function getFileIcon(filename) {
+            if (!filename) return '📄';
+            
+            const ext = filename.toLowerCase().split('.').pop();
+            const iconMap = {
+                // Documents
+                'pdf': '📕',
+                'doc': '📘', 'docx': '📘',
+                'txt': '📄', 'rtf': '📄',
+                'xls': '📗', 'xlsx': '📗',
+                'ppt': '📙', 'pptx': '📙',
+                
+                // Images
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️',
+                'svg': '🎨', 'bmp': '🖼️', 'webp': '🖼️',
+                
+                // Videos
+                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬',
+                'mov': '🎬', 'wmv': '🎬', 'flv': '🎬',
+                
+                // Audio
+                'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
+                'aac': '🎵', 'ogg': '🎵', 'wma': '🎵',
+                
+                // Archives
+                'zip': '📦', 'rar': '📦', '7z': '📦',
+                'tar': '📦', 'gz': '📦', 'bz2': '📦',
+                
+                // Code
+                'js': '📜', 'html': '🌐', 'css': '🎨',
+                'py': '🐍', 'java': '☕', 'cpp': '⚙️',
+                'c': '⚙️', 'php': '🐘', 'rb': '💎',
+                
+                // Other
+                'exe': '⚙️', 'msi': '⚙️', 'deb': '📦',
+                'dmg': '💿', 'iso': '💿'
+            };
+            
+            return iconMap[ext] || '📄';
+        }
+
         // --- MENTION LOGIC ---
         
         function selectMention(username) {
@@ -3047,24 +3418,34 @@
             });
         }
 
-        // --- UI HELPERS ---
-
         function updateUserList() {
+            console.log('DEBUG: updateUserList called');
+            console.log('DEBUG: mutedUsers before update:', mutedUsers);
+            
             // Refresh user list
             Object.keys(activeUsers).forEach(username => {
                 const userItem = document.getElementById('user-item-' + username);
                 if (userItem) {
+                    console.log('DEBUG: Removing existing user item for:', username);
                     userItem.remove();
                 }
                 if (username !== currentUser) {
+                    console.log('DEBUG: Rendering user item for:', username, 'isMuted:', isUserMuted(username));
                     renderUserToList(username);
                 }
             });
+
+            // Jika Room Settings sedang terbuka, refresh juga daftar User Management
+            const roomSettingsModal = document.getElementById('room-settings-modal');
+            if (roomSettingsModal && roomSettingsModal.style.display === 'flex') {
+                renderUserManagementList();
+            }
         }
 
         function updateActiveUser(username, isOnline) {
             if (isOnline) {
                 if (!activeUsers[username]) {
+                    console.log('DEBUG: Adding new active user:', username);
                     activeUsers[username] = true;
                     renderUserToList(username);
                     userCountEl.textContent = Object.keys(activeUsers).length;
@@ -3077,12 +3458,55 @@
                     userCountEl.textContent = Object.keys(activeUsers).length;
                 }
             }
-        }
 
+            // Jika Room Settings sedang terbuka, refresh juga daftar User Management
+            const roomSettingsModal = document.getElementById('room-settings-modal');
+            if (roomSettingsModal && roomSettingsModal.style.display === 'flex') {
+                renderUserManagementList();
+            }
+        }
         function updateUserListHostBadge(username, isHost) {
             const badge = document.getElementById('host-badge-' + username);
             if(badge) { badge.style.display = isHost ? 'inline-block' : 'none'; }
         }
+
+        function renderUserManagementList() {
+            const userListContainer = document.getElementById('user-management-list');
+            if (!userListContainer) return;
+            
+            let html = '';
+            Object.keys(activeUsers).forEach(username => {
+                if (username === currentUser) return; // Skip current user in management list
+                
+                const isMuted = isUserMuted(username);
+                const userRole = userRoles[username] || 'member';
+                const canModerate = isHost || isAdmin();
+                const canMuteUser = canModerate && userRole !== 'host';
+                const buttonText = isMuted ? 'Unmute' : 'Mute';
+                
+                // Tampilkan mute indicator untuk host yang sedang di-mute (termasuk diri sendiri)
+                const showMuteIndicator = isMuted && (username !== currentHost || username === currentUser);
+                
+                html += `
+                    <div class="user-management-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: var(--input-bg); margin: 5px 0; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-weight: 600;">${username}</span>
+                            ${username === currentHost ? '<span style="color: var(--host-gold);">👑 Host</span>' : ''}
+                            ${userRole !== 'member' ? `<span class="user-role-badge role-${userRole}">${userRole}</span>` : ''}
+                            ${showMuteIndicator ? '<span class="muted-indicator" style="background: rgba(255, 193, 7, 0.2) !important; color: #ffc107 !important; padding: 2px 6px !important; border-radius: 4px !important; font-size: 0.7rem !important; font-weight: 600 !important; margin-left: 6px !important; border: 1px solid rgba(255, 193, 7, 0.3) !important; display: inline-flex !important; align-items: center !important; gap: 3px !important;">🔇</span>' : ''}
+                        </div>
+                        ${canMuteUser ? `
+                            <div style="display: flex; gap: 5px;">
+                                <button class="admin-btn mute" onclick="muteUser('${username}')">${buttonText}</button>
+                                <button class="admin-btn" onclick="kickUser('${username}')">Kick</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            userListContainer.innerHTML = html || '<p style="color: var(--text-muted); text-align: center; padding: 20px;">No other users in room</p>';
+                    }
 
         function updateStatus(state) {
             statusBadge.className = 'connection-badge';
@@ -3090,9 +3514,23 @@
                 statusBadge.classList.add('connected');
                 document.getElementById('connection-text').textContent = "Online";
                 userDisplayEl.textContent = `${currentUser} ${isHost ? '👑' : ''}`;
+                
+                // Show/hide self-mute button for hosts
+                if (selfMuteBtn) {
+                    if (isHost) {
+                        selfMuteBtn.style.display = 'inline-block';
+                        const isMuted = isUserMuted(currentUser);
+                        selfMuteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+                    } else {
+                        selfMuteBtn.style.display = 'none';
+                    }
+                }
             } else {
                 document.getElementById('connection-text').textContent = "Offline";
                 userDisplayEl.textContent = '';
+                if (selfMuteBtn) {
+                    selfMuteBtn.style.display = 'none';
+                }
             }
         }
 
@@ -3125,6 +3563,7 @@
             userCountEl = document.getElementById('user-count');
             userDisplayEl = document.getElementById('user-display');
             settingsBtn = document.getElementById('settings-btn');
+            selfMuteBtn = document.getElementById('self-mute-btn');
             
             timerWatermark = document.getElementById('timer-watermark');
             timerInput = document.getElementById('timer-minutes');
