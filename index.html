@@ -245,6 +245,12 @@
             word-break: break-all;
             position: relative;
         }
+        .msg-bubble.emoji-only {
+            font-size: 3rem;
+            line-height: 1.1;
+            text-align: center;
+            padding: 10px 14px;
+        }
         .msg-row.me { flex-direction: row-reverse; }
         .msg-row.me .msg-content { align-items: flex-end; }
         .msg-row.me .msg-name { display: none; }
@@ -253,6 +259,29 @@
             border: none;
             border-top-right-radius: 0;
             border-top-left-radius: 8px;
+        }
+
+        /* --- MESSAGE CONTEXT MENU --- */
+        .message-context-menu {
+            position: fixed;
+            background: var(--header-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            padding: 4px 0;
+            min-width: 120px;
+            z-index: 4000;
+            display: none;
+        }
+        .message-context-item {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .message-context-item:hover {
+            background: rgba(255,255,255,0.08);
         }
 
         /* --- STICKER BUBBLE --- */
@@ -1275,8 +1304,10 @@
     <script>
         const MQTT_HOST = "broker.emqx.io";
         const MQTT_PORT = 8084;
+        const clientId = "anonchat_" + Math.random().toString(16).substr(2, 8);
         
         let client = null;
+        
         let isConnected = false;
         let currentUser = "";
         let currentRoom = "";
@@ -1436,10 +1467,31 @@
         let roomEncryptionKey = '';
         let userPublicKeys = {};
 
+        function initializeEncryption() {
+            if (!roomEncryptionKey) {
+                // Generate a simple random key for the room
+                roomEncryptionKey = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+            }
+        }
+
         // ADMIN & MODERATION VARIABLES
         let userRoles = {}; // 'admin', 'moderator', 'member'
         let mutedUsers = {};
         let kickedUsers = {};
+
+        function isUserMuted(username) {
+            return !!mutedUsers[username];
+        }
+
+        function isUserKicked(username) {
+            return !!kickedUsers[username];
+        }
+
+        function isAdmin() {
+            const role = userRoles[currentUser] || 'member';
+            return role === 'admin' || role === 'moderator';
+        }
+
         let roomSettings = {
             encryption: true,
             fileSharing: true,
@@ -1456,216 +1508,6 @@
         // MOBILE VARIABLES
         let sidebarOpen = false;
 
-        // --- ENCRYPTION FUNCTIONS ---
-        
-        function generateEncryptionKey() {
-            return CryptoJS.lib.WordArray.random(256/8).toString();
-        }
-        
-        function encryptMessage(message, key) {
-            if (!encryptionEnabled || !key) return message;
-            try {
-                const encrypted = CryptoJS.AES.encrypt(message, key).toString();
-                return { encrypted: true, data: encrypted };
-            } catch(e) {
-                console.error('Encryption failed:', e);
-                return message;
-            }
-        }
-        
-        function decryptMessage(encryptedData, key) {
-            if (!encryptionEnabled || !key) return encryptedData;
-            try {
-                if (typeof encryptedData === 'object' && encryptedData.encrypted) {
-                    const decrypted = CryptoJS.AES.decrypt(encryptedData.data, key);
-                    return decrypted.toString(CryptoJS.enc.Utf8);
-                }
-                // Check if it's a string that looks like encrypted data
-                if (typeof encryptedData === 'string' && encryptedData.length > 50) {
-                    try {
-                        const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
-                        const result = decrypted.toString(CryptoJS.enc.Utf8);
-                        if (result) return result;
-                    } catch(e) {
-                        // If decryption fails, return original string
-                    }
-                }
-                return encryptedData;
-            } catch(e) {
-                console.error('Decryption failed:', e);
-                return '[Decryption Error]';
-            }
-        }
-        
-        function initializeEncryption() {
-            roomEncryptionKey = generateEncryptionKey();
-            renderSystemMessage("Encryption initialized.");
-        }
-        
-        // --- ADMIN & MODERATION FUNCTIONS ---
-        
-        function kickUser(username) {
-            if (!isHost && !isAdmin()) return;
-            
-            if (confirm(`Kick ${username} dari room?`)) {
-                publishMessage({
-                    type: 'user_kicked',
-                    user: currentUser,
-                    target: username,
-                    timestamp: Date.now()
-                });
-                
-                kickedUsers[username] = Date.now();
-                renderSystemMessage(`${username} telah di-kick dari room.`);
-                updateActiveUser(username, false);
-            }
-        }
-        
-        function muteUser(username) {
-            if (!isHost && !isAdmin()) return;
-            
-            const isMuted = mutedUsers[username];
-            if (isMuted) {
-                delete mutedUsers[username];
-                renderSystemMessage(`${username} telah di-unmute.`);
-            } else {
-                mutedUsers[username] = true;
-                renderSystemMessage(`${username} telah di-mute.`);
-            }
-            
-            publishMessage({
-                type: 'user_muted',
-                user: currentUser,
-                target: username,
-                muted: !isMuted
-            });
-            
-            updateUserList();
-        }
-        
-        function isAdmin() {
-            return userRoles[currentUser] === 'admin' || isHost;
-        }
-        
-        function isModerator() {
-            return userRoles[currentUser] === 'moderator' || isAdmin();
-        }
-        
-        function setUserRole(username, role) {
-            if (!isAdmin()) return;
-            
-            userRoles[username] = role;
-            publishMessage({
-                type: 'role_change',
-                user: currentUser,
-                target: username,
-                role: role
-            });
-            
-            updateUserList();
-            renderSystemMessage(`${username} sekarang adalah ${role}.`);
-        }
-        
-        function isUserMuted(username) {
-            return mutedUsers[username] === true;
-        }
-        
-        function isUserKicked(username) {
-            return kickedUsers[username] && (Date.now() - kickedUsers[username]) < 300000; // 5 minutes kick
-        }
-        
-        // --- ROOM SETTINGS FUNCTIONS ---
-        
-        function openRoomSettings() {
-            if (!isHost && !isAdmin()) {
-                alert('Hanya Host dan Admin yang bisa mengakses room settings.');
-                return;
-            }
-            
-            document.getElementById('room-settings-modal').style.display = 'flex';
-            loadUserManagement();
-        }
-        
-        function closeRoomSettings() {
-            document.getElementById('room-settings-modal').style.display = 'none';
-        }
-        
-        function loadUserManagement() {
-            const userList = document.getElementById('user-management-list');
-            userList.innerHTML = '';
-            
-            Object.keys(activeUsers).forEach(username => {
-                if (username === currentUser) return;
-                
-                const userItem = document.createElement('div');
-                userItem.className = 'settings-item';
-                userItem.innerHTML = `
-                    <span class="settings-label">
-                        ${username}
-                        ${userRoles[username] ? `<span class="user-role-badge role-${userRoles[username]}">${userRoles[username]}</span>` : ''}
-                        ${isUserMuted(username) ? '<span class="muted-indicator">🔇 Muted</span>' : ''}
-                    </span>
-                    <div class="settings-control">
-                        <select class="role-selector" onchange="setUserRole('${username}', this.value)">
-                            <option value="member" ${userRoles[username] === 'member' ? 'selected' : ''}>Member</option>
-                            <option value="moderator" ${userRoles[username] === 'moderator' ? 'selected' : ''}>Moderator</option>
-                            ${isAdmin() ? `<option value="admin" ${userRoles[username] === 'admin' ? 'selected' : ''}>Admin</option>` : ''}
-                        </select>
-                        <button class="admin-btn mute" onclick="muteUser('${username}')">${isUserMuted(username) ? 'Unmute' : 'Mute'}</button>
-                        <button class="admin-btn" onclick="kickUser('${username}')">Kick</button>
-                    </div>
-                `;
-                userList.appendChild(userItem);
-            });
-        }
-        
-        function toggleEncryption() {
-            const toggle = document.getElementById('encryption-toggle');
-            encryptionEnabled = !encryptionEnabled;
-            toggle.classList.toggle('active');
-            
-            if (encryptionEnabled) {
-                initializeEncryption();
-            }
-        }
-        
-        function toggleFileSharing() {
-            const toggle = document.getElementById('file-toggle');
-            roomSettings.fileSharing = !roomSettings.fileSharing;
-            toggle.classList.toggle('active');
-            
-            fileBtn.style.display = roomSettings.fileSharing ? 'block' : 'none';
-            privateFileBtn.style.display = roomSettings.fileSharing ? 'block' : 'none';
-        }
-        
-        function toggleStickers() {
-            const toggle = document.getElementById('sticker-toggle');
-            roomSettings.stickers = !roomSettings.stickers;
-            toggle.classList.toggle('active');
-            
-            stickerBtn.style.display = roomSettings.stickers ? 'block' : 'none';
-            privateStickerBtn.style.display = roomSettings.stickers ? 'block' : 'none';
-        }
-        
-        function saveRoomSettings() {
-            publishMessage({
-                type: 'settings_update',
-                user: currentUser,
-                settings: roomSettings
-            });
-            
-            renderSystemMessage('Room settings telah diperbarui.');
-            closeRoomSettings();
-        }
-        
-        // --- MOBILE FUNCTIONS ---
-        
-        function toggleSidebar() {
-            const sidebar = document.querySelector('.sidebar');
-            sidebarOpen = !sidebarOpen;
-            sidebar.classList.toggle('mobile-open', sidebarOpen);
-        }
-        
         // --- ENHANCED RECONNECTION LOGIC ---
         
         function enhancedOnFailure() {
@@ -1736,24 +1578,16 @@
             // 4. Validasi
             if(user.length > 25) { alert("Username terlalu panjang"); return; }
             
-            currentUser = user;
-            currentRoom = room;
-            
-            document.getElementById('login-overlay').style.display = 'none';
-            displayRoomId.textContent = currentRoom;
-            updateActiveUser(currentUser, true);
-            
-            // Initially hide settings button and timer controls - will be shown when user becomes host/admin
-            settingsBtn.style.display = 'none';
-            timerControls.classList.add('hidden');
-            
-            generateStickerGrid();
-            startConnection();
-        }
+        currentUser = user;
+        currentRoom = room;
+        
+        document.getElementById('login-overlay').style.display = 'none';
+        displayRoomId.textContent = currentRoom;
+        updateActiveUser(currentUser, true);
+        startConnection();
+    }
         
         function startConnection() {
-            updateStatus('connecting');
-            const clientId = "chat_file_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
             
             client.onConnectionLost = onConnectionLost;
@@ -2073,6 +1907,7 @@
                         currentHost = "";
                         renderSystemMessage("Host keluar.");
                         timerControls.classList.add('disabled');
+                        timerControls.classList.add('hidden');
                         timerInput.disabled = true;
                         btnSetTimer.disabled = true;
                     } else {
@@ -2086,7 +1921,7 @@
         }
 
         // --- UPLOAD LOGIC ---
-
+        
         function handleFileSelected(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -2142,7 +1977,7 @@
         });
 
         // --- PRIVATE CHAT FILE HANDLING ---
-
+        
         // Private chat file button → open file picker
         privateFileBtn.addEventListener('click', () => {
             privateFileInput.click();
@@ -2210,17 +2045,18 @@
         });
 
         // --- STICKER LOGIC (GLOBAL CHAT) ---
-
+        
         function generateStickerGrid() {
             stickers.forEach(sticker => {
                 const div = document.createElement('div');
                 div.className = 'sticker-item';
                 
                 if (typeof sticker === 'string') {
+                    // Emoji-type sticker: isi ke input chat agar bisa dikombinasikan
                     div.textContent = sticker;
-                    div.onclick = () => sendSticker(sticker);
+                    div.onclick = () => insertStickerToInput(sticker);
                 } else {
-                    // Image sticker from CDN
+                    // Image sticker from CDN: tetap kirim sebagai pesan stiker tunggal (besar)
                     const img = document.createElement('img');
                     img.src = sticker.url;
                     img.alt = sticker.name;
@@ -2233,6 +2069,17 @@
                 
                 stickerGrid.appendChild(div);
             });
+        }
+
+        // Masukkan stiker (emoji) ke input chat tanpa langsung mengirim
+        function insertStickerToInput(stickerChar) {
+            if (!messageInput) return;
+
+            const current = messageInput.value || '';
+            // Tambah spasi jika perlu supaya tidak terlalu dempet dengan teks sebelumnya
+            const needsSpace = current && !current.endsWith(' ');
+            messageInput.value = current + (needsSpace ? ' ' : '') + stickerChar + ' ';
+            messageInput.focus();
         }
 
         function toggleStickerPanel() {
@@ -2254,7 +2101,7 @@
             row.className = `msg-row ${isMe ? 'me' : 'them'}`;
             const avatarColor = userColors[user] || '#777';
             const initial = user.substring(0,2).toUpperCase();
-
+            
             let stickerContent = '';
             if (typeof sticker === 'string') {
                 stickerContent = sticker;
@@ -2278,7 +2125,7 @@
         }
 
         // --- FILE RENDER LOGIC ---
-
+        
         function renderFileMessage(payload, isMe) {
             const row = document.createElement('div');
             row.className = `msg-row ${isMe ? 'me' : 'them'}`;
@@ -2360,7 +2207,7 @@
         }
 
         // --- MESSAGE HANDLING ---
-
+        
         function sendMessage() {
             const text = messageInput.value.trim();
             if (!text || !isConnected || isUserMuted(currentUser)) return;
@@ -2441,12 +2288,25 @@
                 `;
             }
 
+            // Deteksi pesan hanya berisi satu emoji (tanpa huruf/angka lain)
+            const trimmed = text.trim();
+            const isEmojiOnly =
+                trimmed.length > 0 &&
+                trimmed.length <= 4 &&
+                !/[a-zA-Z0-9]/.test(trimmed);
+            const bubbleClass = isEmojiOnly ? 'msg-bubble emoji-only' : 'msg-bubble';
+            
             row.innerHTML = `
                 <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
                 <div class="msg-content">
                     ${!isMe ? `<div class="msg-name">${user}</div>` : ''}
                     ${quotedMessageHTML}
-                    <div class="msg-bubble">${safeText}</div>
+                    <div class="${bubbleClass}"
+                         data-msg-id="${id}"
+                         data-msg-user="${user}"
+                         data-msg-text="${text.replace(/"/g, '&quot;')}">
+                        ${safeText}
+                    </div>
                     <span class="msg-time">${time}</span>
                     <button class="reply-button" onclick="startReply(${JSON.stringify({id: id, user: user, text: text}).replace(/"/g, '&quot;')})">Reply</button>
                 </div>
@@ -2735,6 +2595,87 @@
             }
         });
 
+        function renderPrivateMessage(from, text, time, isMe, replyTo) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+            const avatarColor = userColors[from] || '#777';
+            const initial = from.substring(0,2).toUpperCase();
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            let quotedMessageHTML = '';
+            if (replyTo) {
+                quotedMessageHTML = `
+                    <div class="quoted-message">
+                        <div class="quoted-author">${replyTo.from}</div>
+                        <div class="quoted-text">${replyTo.text}</div>
+                    </div>
+                `;
+            }
+
+            row.innerHTML = `
+                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
+                <div class="msg-content">
+                    <div class="msg-name">${from} (Private)</div>
+                    ${quotedMessageHTML}
+                    <div class="msg-bubble">${safeText}</div>
+                    <span class="msg-time">${time}</span>
+                    <button class="reply-button" onclick="startPrivateReply(${JSON.stringify({from: from, text: text, time: time}).replace(/"/g, '&quot;')})">Reply</button>
+                </div>
+            `;
+            privateChatMessages.appendChild(row);
+            privateChatMessages.scrollTop = privateChatMessages.scrollHeight;
+        }
+
+        function startPrivateReply(message) {
+            // message: { from, text, time }
+            privateReplyToMessage = {
+                from: message.from,
+                text: message.text,
+                time: message.time
+            };
+
+            if (privateChatInput) {
+                privateChatInput.focus();
+            }
+        }
+
+        function insertPrivateStickerToInput(stickerChar) {
+            if (!privateChatInput) return;
+
+            const current = privateChatInput.value || '';
+            const needsSpace = current && !current.endsWith(' ');
+            privateChatInput.value = current + (needsSpace ? ' ' : '') + stickerChar + ' ';
+            privateChatInput.focus();
+        }
+
+        function generatePrivateStickerGrid() {
+            // Bersihkan dulu
+            privateStickerGrid.innerHTML = '';
+
+            stickers.forEach((sticker) => {
+                const div = document.createElement('div');
+                div.className = 'sticker-item';
+                
+                if (typeof sticker === 'string') {
+                    // Emoji sticker: isi ke input private chat agar bisa dikombinasikan
+                    div.textContent = sticker;
+                    div.onclick = () => insertPrivateStickerToInput(sticker);
+                } else {
+                    // Image sticker from CDN
+                    const img = document.createElement('img');
+                    img.src = sticker.url;
+                    img.alt = sticker.name;
+                    img.style.width = '35px';
+                    img.style.height = '35px';
+                    img.style.objectFit = 'contain';
+                    div.appendChild(img);
+                    div.onclick = () => sendPrivateSticker(sticker);
+                }
+                
+                privateStickerGrid.appendChild(div);
+            });
+        }
+
         function sendPrivateMessage() {
             const text = privateChatInput.value.trim();
             if (!text || !isConnected || !currentPrivateChatUser) return;
@@ -2785,65 +2726,6 @@
 
             privateChatInput.value = "";
             privateReplyToMessage = null; // Clear reply after sending
-        }
-
-        function renderPrivateMessage(from, text, time, isMe, replyTo) {
-            const row = document.createElement('div');
-            row.className = `msg-row ${isMe ? 'me' : 'them'}`;
-            const avatarColor = userColors[from] || '#777';
-            const initial = from.substring(0,2).toUpperCase();
-            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-            let quotedMessageHTML = '';
-            if (replyTo) {
-                quotedMessageHTML = `
-                    <div class="quoted-message">
-                        <div class="quoted-author">${replyTo.from}</div>
-                        <div class="quoted-text">${replyTo.text}</div>
-                    </div>
-                `;
-            }
-
-            row.innerHTML = `
-                <div class="msg-avatar" style="background: ${avatarColor}">${initial}</div>
-                <div class="msg-content">
-                    <div class="msg-name">${from} (Private)</div>
-                    ${quotedMessageHTML}
-                    <div class="msg-bubble">${safeText}</div>
-                    <span class="msg-time">${time}</span>
-                    <button class="reply-button" onclick="startPrivateReply(${JSON.stringify({from: from, text: text, time: time}).replace(/"/g, '&quot;')})">Reply</button>
-                </div>
-            `;
-            privateChatMessages.appendChild(row);
-            privateChatMessages.scrollTop = privateChatMessages.scrollHeight;
-        }
-
-        function generatePrivateStickerGrid() {
-            // Bersihkan dulu
-            privateStickerGrid.innerHTML = '';
-
-            stickers.forEach((sticker, index) => {
-                const div = document.createElement('div');
-                div.className = 'sticker-item';
-                
-                if (typeof sticker === 'string') {
-                    // Emoji sticker
-                    div.textContent = sticker;
-                    div.onclick = () => sendPrivateSticker(sticker);
-                } else {
-                    // Image sticker from CDN
-                    const img = document.createElement('img');
-                    img.src = sticker.url;
-                    img.alt = sticker.name;
-                    img.style.width = '35px';
-                    img.style.height = '35px';
-                    img.style.objectFit = 'contain';
-                    div.appendChild(img);
-                    div.onclick = () => sendPrivateSticker(sticker);
-                }
-                
-                privateStickerGrid.appendChild(div);
-            });
         }
 
         function sendPrivateSticker(sticker) {
