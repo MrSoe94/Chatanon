@@ -237,6 +237,8 @@
             border-top-left-radius: 0;
             line-height: 1.4;
             word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-all;
             position: relative;
         }
         .msg-row.me { flex-direction: row-reverse; }
@@ -622,6 +624,8 @@
         .private-chat-messages .msg-bubble {
             background: var(--input-bg); padding: 8px 12px;
             border-radius: 8px; word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-all;
             position: relative;
         }
         .private-chat-messages .msg-row.me .msg-bubble {
@@ -635,6 +639,8 @@
             background: var(--bubble-them); padding: 8px 12px;
             border-radius: 8px; margin-bottom: 8px; max-width: 80%;
             word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-all;
         }
         .private-msg-bubble.me {
             background: var(--bubble-me); margin-left: auto;
@@ -1352,43 +1358,43 @@
         ];
 
         // DOM
-        const displayRoomId = document.getElementById('display-room-id');
-        const messagesArea = document.getElementById('messages-area');
-        const messageInput = document.getElementById('message-input');
-        const userListEl = document.getElementById('user-list');
-        const sendBtn = document.getElementById('send-btn');
-        const statusBadge = document.getElementById('connection-badge');
-        const userCountEl = document.getElementById('user-count');
-        const userDisplayEl = document.getElementById('user-display');
-        const settingsBtn = document.getElementById('settings-btn');
+        let displayRoomId = document.getElementById('display-room-id');
+        let messagesArea = document.getElementById('messages-area');
+        let messageInput = document.getElementById('message-input');
+        let userListEl = document.getElementById('user-list');
+        let sendBtn = document.getElementById('send-btn');
+        let statusBadge = document.getElementById('connection-badge');
+        let userCountEl = document.getElementById('user-count');
+        let userDisplayEl = document.getElementById('user-display');
+        let settingsBtn = document.getElementById('settings-btn');
         
         // Timer DOM
-        const timerWatermark = document.getElementById('timer-watermark');
-        const timerInput = document.getElementById('timer-minutes');
-        const btnSetTimer = document.getElementById('btn-set-timer');
-        const timerControls = document.getElementById('timer-controls'); 
-        const expiredOverlay = document.getElementById('expired-overlay');
+        let timerWatermark = document.getElementById('timer-watermark');
+        let timerInput = document.getElementById('timer-minutes');
+        let btnSetTimer = document.getElementById('btn-set-timer');
+        let timerControls = document.getElementById('timer-controls'); 
+        let expiredOverlay = document.getElementById('expired-overlay');
 
         // Sticker DOM
-        const stickerBtn = document.getElementById('sticker-btn');
-        const stickerPanel = document.getElementById('sticker-panel');
-        const stickerGrid = document.getElementById('sticker-grid');
+        let stickerBtn = document.getElementById('sticker-btn');
+        let stickerPanel = document.getElementById('sticker-panel');
+        let stickerGrid = document.getElementById('sticker-grid');
 
         // File DOM
-        const fileBtn = document.getElementById('file-btn');
-        const fileInput = document.getElementById('file-input');
+        let fileBtn = document.getElementById('file-btn');
+        let fileInput = document.getElementById('file-input');
 
         // Private Chat DOM
-        const privateChatModal = document.getElementById('private-chat-modal');
-        const privateChatUsername = document.getElementById('private-chat-username');
-        const privateChatTarget = document.getElementById('private-chat-target');
-        const privateChatMessages = document.getElementById('private-chat-messages');
-        const privateChatInput = document.getElementById('private-chat-input');
-        const privateStickerBtn = document.getElementById('private-sticker-btn');
-        const privateStickerPanel = document.getElementById('private-sticker-panel');
-        const privateStickerGrid = document.getElementById('private-sticker-grid');
-        const privateFileBtn = document.getElementById('private-file-btn');
-        const privateFileInput = document.getElementById('private-file-input');
+        let privateChatModal = document.getElementById('private-chat-modal');
+        let privateChatUsername = document.getElementById('private-chat-username');
+        let privateChatTarget = document.getElementById('private-chat-target');
+        let privateChatMessages = document.getElementById('private-chat-messages');
+        let privateChatInput = document.getElementById('private-chat-input');
+        let privateStickerBtn = document.getElementById('private-sticker-btn');
+        let privateStickerPanel = document.getElementById('private-sticker-panel');
+        let privateStickerGrid = document.getElementById('private-sticker-grid');
+        let privateFileBtn = document.getElementById('private-file-btn');
+        let privateFileInput = document.getElementById('private-file-input');
 
         // Mention Suggestion DOM
         const mentionSuggestionsEl = document.getElementById('mention-suggestions');
@@ -1421,7 +1427,6 @@
         let messageHistory = {};
 
         // --- NEW VARIABLES FOR ENHANCED FEATURES ---
-
         // ENCRYPTION VARIABLES
         let encryptionEnabled = true;
         let roomEncryptionKey = '';
@@ -1665,6 +1670,8 @@
             messageInput.disabled = true;
             sendBtn.disabled = true;
             
+            console.warn('MQTT enhancedOnFailure: reconnectAttempts =', reconnectAttempts, 'max =', maxReconnectAttempts);
+
             if (!isReconnecting && reconnectAttempts < maxReconnectAttempts) {
                 isReconnecting = true;
                 reconnectAttempts++;
@@ -1682,17 +1689,18 @@
         }
         
         function enhancedOnConnectionLost(responseObject) {
-            if (responseObject.errorCode !== 0) {
+            console.warn('MQTT onConnectionLost:', responseObject && responseObject.errorCode, responseObject && responseObject.errorMessage);
+            if (responseObject && responseObject.errorCode !== 0) {
                 enhancedOnFailure();
             }
         }
         
         // --- CORE FUNCTIONS ---
-
+        
         function generateRandomRoom() {
             return "A-" + Math.floor(100 + Math.random() * 900);
         }
-
+        
         function generateRandomUsername() {
             const adjectives = ['Kucing', 'Anjing', 'Babi', 'Kuda', 'Sapi', 'Keledai', 'Unta', 'Elang', 'Ulat', 'Singa', 'Harimau', 'Kerbau', 'Kelinci', 'Nyamuk', 'Cacing', 'Keong', 'Ikan', 'Kecoa', 'Kangguru', 'Bebek', 'Kelelawar', 'Laba-Laba', 'Kodok', 'Monyet', 'Kutu'];
             const nouns = ['CEO', 'VIP', 'PRO', 'MAX', 'TOP', 'GOLD', 'STAR', 'ACE', 'ELITE', 'PLUS'];
@@ -1703,27 +1711,27 @@
             
             return `${adjective}${noun}${numbers}`;
         }
-
+        
         function joinApp() {
             // 1. Ambil Nilai
             let user = document.getElementById('username').value.trim();
             let room = document.getElementById('roomid').value.trim().toUpperCase();
-
+            
             // 2. Random Username jika kosong
             if(!user) {
                 user = generateRandomUsername();
                 document.getElementById('username').value = user;
             }
-
+            
             // 3. Room ID Logic (PERBAHAN: Jika kosong, buat random)
             if(!room) {
                 room = generateRandomRoom();
                 document.getElementById('roomid').value = room;
             }
-
+            
             // 4. Validasi
             if(user.length > 25) { alert("Username terlalu panjang"); return; }
-
+            
             currentUser = user;
             currentRoom = room;
             
@@ -1743,28 +1751,28 @@
             updateStatus('connecting');
             const clientId = "chat_file_" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, clientId);
-
+            
             client.onConnectionLost = onConnectionLost;
             client.onMessageArrived = onMessageArrived;
-
+            
             const topic = "anonchat/room/" + currentRoom;
             const willMessage = new Paho.MQTT.Message(JSON.stringify({ type: 'leave', user: currentUser }));
             willMessage.destinationName = topic;
-
+            
             const options = {
                 useSSL: true, timeout: 10, keepAliveInterval: 30,
                 onSuccess: onConnect, onFailure: onFailure, willMessage: willMessage
             };
-
+            
             try { client.connect(options); } catch(e) { onFailure(); }
         }
-
+        
         function onConnect() {
             isConnected = true;
             updateStatus('connected');
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
-
+            
             publishMessage({ type: 'join', user: currentUser });
             checkHostElection();
             
@@ -1825,6 +1833,7 @@
         }
         
         function onFailure() {
+            console.error('MQTT onFailure: initial connection failed');
             enhancedOnFailure();
         }
         
@@ -2074,12 +2083,7 @@
 
         // --- UPLOAD LOGIC ---
 
-        fileBtn.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        // Global file input → send file message
-        fileInput.addEventListener('change', (e) => {
+        function handleFileSelected(e) {
             const file = e.target.files[0];
             if (!file) return;
 
@@ -2117,6 +2121,20 @@
             }
 
             e.target.value = "";
+        }
+
+        fileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Global file input → send file message
+        fileInput.addEventListener('change', handleFileSelected);
+
+        // Reset block
+        document.addEventListener('DOMContentLoaded', () => {
+            // Rebind fileInput to the cloned node
+            fileInput = fileInput.cloneNode(true);
+            fileInput.addEventListener('change', handleFileSelected);
         });
 
         // --- PRIVATE CHAT FILE HANDLING ---
@@ -2341,8 +2359,14 @@
 
         function sendMessage() {
             const text = messageInput.value.trim();
-            if(!text || !isConnected || isUserMuted(currentUser)) return;
-            
+            if (!text || !isConnected || isUserMuted(currentUser)) return;
+
+            // Batasi panjang pesan maksimal 2500 karakter
+            if (text.length > 2500) {
+                alert('Pesan terlalu panjang. Maksimal 2500 karakter.');
+                return;
+            }
+
             // If we're in mention mode and Enter is pressed, handle mention selection first
             if (isMentionMode && selectedMentionIndex >= 0) {
                 selectMention(mentionSuggestions[selectedMentionIndex]);
@@ -2659,9 +2683,22 @@
 
         // --- PRIVATE CHAT LOGIC ---
 
+        // Tutup modal private chat jika klik di area gelap di luar container
+        privateChatModal.addEventListener('click', (e) => {
+            if (e.target === privateChatModal) {
+                closePrivateChat();
+            }
+        });
+
         function sendPrivateMessage() {
             const text = privateChatInput.value.trim();
             if (!text || !isConnected || !currentPrivateChatUser) return;
+
+            // Batasi panjang pesan privat maksimal 500 karakter
+            if (text.length > 500) {
+                alert('Pesan terlalu panjang. Maksimal 500 karakter.');
+                return;
+            }
 
             // Encrypt message if encryption is enabled and message contains mention
             let shouldEncrypt = encryptionEnabled && text.includes('@');
