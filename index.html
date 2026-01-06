@@ -2361,9 +2361,9 @@
             const text = messageInput.value.trim();
             if (!text || !isConnected || isUserMuted(currentUser)) return;
 
-            // Batasi panjang pesan maksimal 2500 karakter
-            if (text.length > 2500) {
-                alert('Pesan terlalu panjang. Maksimal 2500 karakter.');
+            // Batasi panjang pesan maksimal 5000 karakter
+            if (text.length > 5000) {
+                alert('Pesan terlalu panjang. Maksimal 5000 karakter.');
                 return;
             }
 
@@ -2694,9 +2694,9 @@
             const text = privateChatInput.value.trim();
             if (!text || !isConnected || !currentPrivateChatUser) return;
 
-            // Batasi panjang pesan privat maksimal 500 karakter
-            if (text.length > 500) {
-                alert('Pesan terlalu panjang. Maksimal 500 karakter.');
+            // Batasi panjang pesan privat maksimal 5000 karakter
+            if (text.length > 5000) {
+                alert('Pesan terlalu panjang. Maksimal 5000 karakter.');
                 return;
             }
 
