@@ -1499,6 +1499,19 @@
             maxUsers: 50
         };
 
+        // ROOM SETTINGS MODAL HELPERS
+        function openRoomSettings() {
+            const modal = document.getElementById('room-settings-modal');
+            if (!modal) return;
+            modal.style.display = 'flex';
+        }
+
+        function closeRoomSettings() {
+            const modal = document.getElementById('room-settings-modal');
+            if (!modal) return;
+            modal.style.display = 'none';
+        }
+
         // RECONNECTION VARIABLES
         let reconnectAttempts = 0;
         let maxReconnectAttempts = 5;
@@ -1910,6 +1923,8 @@
                         timerControls.classList.add('hidden');
                         timerInput.disabled = true;
                         btnSetTimer.disabled = true;
+                        // Otomatis mulai pemilihan host baru saat host keluar
+                        checkHostElection();
                     } else {
                         renderSystemMessage(`${payload.user} keluar.`);
                     }
@@ -2222,6 +2237,11 @@
             if (isMentionMode && selectedMentionIndex >= 0) {
                 selectMention(mentionSuggestions[selectedMentionIndex]);
                 return;
+            }
+            
+            // Permintaan manual menjadi HOST ketika belum ada host aktif
+            if (text === "Saya Host!" && !isHost && !currentHost) {
+                becomeHost();
             }
             
             messageIdCounter++;
