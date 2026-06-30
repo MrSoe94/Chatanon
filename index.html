@@ -1772,7 +1772,9 @@
             userRoles[username] = role;
             publishMessage({ type: 'role_change', user: currentUser, target: username, role: role });
             updateUserList();
+            updateUserRoleBadge(username);
             renderSystemMessage(`${username} sekarang adalah ${role}.`);
+            refreshUserManagement();
         }
 
         // ========== ROOM SETTINGS ==========
@@ -1793,7 +1795,7 @@
                 userItem.innerHTML = `
                     <span class="settings-label">
                         ${username === currentHost ? '👑 ' : ''}${username}
-                        ${userRoles[username] ? `<span class="user-role-badge role-${userRoles[username]}">${userRoles[username] === 'admin' ? '⚡' : '🛡'}</span>` : ''}
+                        <span class="user-role-badge role-${userRoles[username]||'member'}" style="display:${(userRoles[username]||'member') !== 'member' ? 'inline-block' : 'none'}">${userRoles[username]==='admin' ? '⚡' : userRoles[username]==='moderator' ? '🛡' : ''}</span>
                         ${isUserMuted(username) ? '<span class="muted-indicator">🔇 Muted</span>' : ''}
                     </span>
                     <div class="settings-control">
@@ -2017,7 +2019,7 @@
         function removeMessageFromUI(msgId) {
             const el = document.getElementById('msg-' + msgId);
             if (el) {
-                el.classList.add('deleted-message');
+                el.remove();
                 delete messageHistory[msgId];
             }
         }
@@ -2173,7 +2175,7 @@
                         renderSystemMessage(`Anda sekarang adalah ${payload.role}.`);
                         settingsBtn.style.display=(payload.role==='admin'||payload.role==='moderator'||isHost)?'block':'none';
                     }
-                    updateUserList(); refreshUserManagement(); return;
+                    updateUserList(); updateUserRoleBadge(payload.target); refreshUserManagement(); return;
                 }
                 if (payload.type === 'settings_update') { roomSettings={...roomSettings,...payload.settings}; renderSystemMessage("Room settings diperbarui."); return; }
 
@@ -2656,23 +2658,28 @@
 
         function renderUserToList(username) {
             if (document.getElementById('user-item-'+username)) return;
+            const div = document.createElement('div');
+            div.className = 'user-item';
+            div.id = 'user-item-'+username;
+            div.innerHTML = renderUserListItem(username);
+            userListEl.appendChild(div);
+        }
+
+        function renderUserListItem(username) {
             const color = userColors[username]||getRandomColor();
             userColors[username]=color;
             const initial = username.substring(0,2).toUpperCase();
             const isMuted = isUserMuted(username);
             const userRole = userRoles[username]||'member';
             const canModerate = isHost||isAdmin()||isModerator();
-            const div = document.createElement('div');
-            div.className = 'user-item';
-            div.id = 'user-item-'+username;
             const privateBtnStyle = canModerate ? '' : 'style="right:20px"';
-            div.innerHTML = `
+            return `
                 <div class="user-avatar" style="background:${color}">${initial}</div>
                 <div class="user-info">
                     <div class="user-name" id="name-${username}">
                         ${username}
                         <span class="host-badge" id="host-badge-${username}" style="display:${username === currentHost ? 'inline-block' : 'none'}">👑</span>
-                        ${userRole!=='member'?`<span class="user-role-badge role-${userRole}">${userRole === 'admin' ? '⚡' : '🛡'}</span>`:''}
+                        <span class="user-role-badge role-${userRole}" id="role-badge-${username}" style="display:${userRole !== 'member' ? 'inline-block' : 'none'}">${userRole === 'admin' ? '⚡' : userRole === 'moderator' ? '🛡' : ''}</span>
                         ${isMuted?'<span class="muted-indicator">🔇 Muted</span>':''}
                     </div>
                     <div class="user-status-text">Online</div>
@@ -2680,17 +2687,27 @@
                 <button class="private-chat-btn ${privateBtnStyle?'has-style':''}" ${privateBtnStyle} onclick="openPrivateChatModal('${username}')">@</button>
                 ${canModerate?`<div class="admin-controls"><button class="admin-btn mute" onclick="muteUser('${username}')">${isMuted?'Unmute':'Mute'}</button><button class="admin-btn" onclick="kickUser('${username}')">Kick</button></div>`:''}
                 <div class="status-dot"></div>`;
-            userListEl.appendChild(div);
         }
 
         function updateUserList() {
             Object.keys(activeUsers).forEach(username => {
+                if (username === currentUser) return;
                 const el = document.getElementById('user-item-'+username);
-                if (el) el.remove();
+                if (el) {
+                    el.innerHTML = renderUserListItem(username);
+                } else {
+                    renderUserToList(username);
+                }
             });
-            Object.keys(activeUsers).forEach(username => {
-                if (username !== currentUser) renderUserToList(username);
-            });
+        }
+
+        function updateUserRoleBadge(username) {
+            const badge = document.getElementById('role-badge-' + username);
+            if (!badge) return;
+            const role = userRoles[username] || 'member';
+            badge.className = 'user-role-badge role-' + role;
+            badge.textContent = role === 'admin' ? '⚡' : role === 'moderator' ? '🛡' : '';
+            badge.style.display = role !== 'member' ? 'inline-block' : 'none';
         }
 
         function updateUserListHostBadge(username, isHost) {
