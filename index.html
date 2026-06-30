@@ -2269,13 +2269,14 @@
                     if (isUserKicked(payload.user)) { publishMessage({type:'user_kicked',user:currentUser,target:payload.user}); return; }
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
+                    refreshUserManagement();
                     const activeRoles = getActiveRoles();
                     publishMessage({type:'presence',user:currentUser,roles:activeRoles});
                     if (isHost && timerRunning) { publishMessage({type:'timer_tick',remaining:Math.max(0,timerEndTime-Date.now())}); }
                     if (roomEncryptionKey && encryptionEnabled) publishMessage({type:'key_exchange',user:currentUser,key:roomEncryptionKey});
                 }
                 else if (payload.type === 'presence') {
-                    if (!isUserKicked(payload.user)) updateActiveUser(payload.user, true);
+                    if (!isUserKicked(payload.user)) { updateActiveUser(payload.user, true); refreshUserManagement(); }
                     if (payload.roles) {
                         Object.keys(payload.roles).forEach(u => {
                             if (userRoles[u] !== payload.roles[u]) {
