@@ -981,10 +981,7 @@
         .role-moderator { background: #6f42c1; color: white; }
         .role-member { background: #6c757d; color: white; }
 
-        .user-role-badge {
-            font-size: 0.6rem; padding: 1px 5px; border-radius: 4px;
-            text-transform: uppercase; font-weight: bold;
-        }
+        .user-role-badge { font-size: 1rem; margin-left: 2px; }
         .muted-indicator { font-size: 0.7rem; color: #ffc107; margin-left: 4px; }
 
         /* --- ROOM SETTINGS MODAL --- */
@@ -2702,9 +2699,15 @@
         }
 
         function updateUserRoleBadge(username) {
-            const badge = document.getElementById('role-badge-' + username);
-            if (!badge) return;
+            let badge = document.getElementById('role-badge-' + username);
             const role = userRoles[username] || 'member';
+            if (!badge) {
+                const nameEl = document.getElementById('name-' + username);
+                if (!nameEl) return;
+                badge = document.createElement('span');
+                badge.id = 'role-badge-' + username;
+                nameEl.appendChild(badge);
+            }
             badge.className = 'user-role-badge role-' + role;
             badge.textContent = role === 'admin' ? '⚡' : role === 'moderator' ? '🛡' : '';
             badge.style.display = role !== 'member' ? 'inline-block' : 'none';
