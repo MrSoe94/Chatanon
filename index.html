@@ -977,11 +977,13 @@
         }
         .admin-btn.mute:hover { background: rgba(255, 193, 7, 0.5); }
 
+        .user-role-badge {
+            font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+            font-weight: bold; text-transform: uppercase; margin-left: 4px;
+        }
         .role-admin { background: var(--danger); color: white; }
         .role-moderator { background: #6f42c1; color: white; }
         .role-member { background: #6c757d; color: white; }
-
-        .user-role-badge { font-size: 1rem; margin-left: 2px; }
         .muted-indicator { font-size: 0.7rem; color: #ffc107; margin-left: 4px; }
 
         /* --- ROOM SETTINGS MODAL --- */
@@ -2064,6 +2066,7 @@
             updateStatus('connected');
             const topic = "anonchat/room/" + currentRoom;
             client.subscribe(topic);
+            updateActiveUser(currentUser, true);
             publishMessage({ type: 'join', user: currentUser });
             checkHostElection();
             if (encryptionEnabled) initializeEncryption();
@@ -2171,6 +2174,8 @@
                     if (payload.target===currentUser) {
                         renderSystemMessage(`Anda sekarang adalah ${payload.role}.`);
                         settingsBtn.style.display=(payload.role==='admin'||payload.role==='moderator'||isHost)?'block':'none';
+                    } else {
+                        renderSystemMessage(`${payload.target} sekarang adalah ${payload.role}.`);
                     }
                     updateUserList(); updateUserRoleBadge(payload.target); refreshUserManagement(); return;
                 }
@@ -2264,11 +2269,22 @@
                     if (isUserKicked(payload.user)) { publishMessage({type:'user_kicked',user:currentUser,target:payload.user}); return; }
                     updateActiveUser(payload.user, true);
                     renderSystemMessage(`${payload.user} bergabung.`);
-                    publishMessage({type:'presence',user:currentUser});
+                    const activeRoles = getActiveRoles();
+                    publishMessage({type:'presence',user:currentUser,roles:activeRoles});
                     if (isHost && timerRunning) { publishMessage({type:'timer_tick',remaining:Math.max(0,timerEndTime-Date.now())}); }
                     if (roomEncryptionKey && encryptionEnabled) publishMessage({type:'key_exchange',user:currentUser,key:roomEncryptionKey});
                 }
-                else if (payload.type === 'presence') { if (!isUserKicked(payload.user)) updateActiveUser(payload.user, true); }
+                else if (payload.type === 'presence') {
+                    if (!isUserKicked(payload.user)) updateActiveUser(payload.user, true);
+                    if (payload.roles) {
+                        Object.keys(payload.roles).forEach(u => {
+                            if (userRoles[u] !== payload.roles[u]) {
+                                userRoles[u] = payload.roles[u];
+                                updateUserRoleBadge(u);
+                            }
+                        });
+                    }
+                }
         else if (payload.type === 'leave') {
             updateActiveUser(payload.user, false);
             refreshUserManagement();
@@ -2643,6 +2659,11 @@
         function forceKickout() { expiredOverlay.style.display='flex'; if(timerInterval) clearInterval(timerInterval); setTimeout(()=>cleanAndExit(),2000); }
 
         // ========== UI HELPERS ==========
+        function getActiveRoles() {
+            const roles = {};
+            Object.keys(userRoles).forEach(u => { if (userRoles[u] !== 'member') roles[u] = userRoles[u]; });
+            return Object.keys(roles).length ? roles : null;
+        }
         function updateActiveUser(username, isOnline) {
             if (isOnline) {
                 if (!activeUsers[username]) { activeUsers[username]=true; renderUserToList(username); userCountEl.textContent=Object.keys(activeUsers).length; }
@@ -2668,8 +2689,11 @@
             const initial = username.substring(0,2).toUpperCase();
             const isMuted = isUserMuted(username);
             const userRole = userRoles[username]||'member';
-            const canModerate = isHost||isAdmin()||isModerator();
-            const privateBtnStyle = canModerate ? '' : 'style="right:20px"';
+            const isSelf = username === currentUser;
+            const canModerate = !isSelf && (isHost||isAdmin()||isModerator());
+            const showPrivateBtn = !isSelf;
+            let privateBtnStyle = '';
+            if (!canModerate && showPrivateBtn) privateBtnStyle = 'style="right:20px"';
             return `
                 <div class="user-avatar" style="background:${color}">${initial}</div>
                 <div class="user-info">
@@ -2681,14 +2705,13 @@
                     </div>
                     <div class="user-status-text">Online</div>
                 </div>
-                <button class="private-chat-btn ${privateBtnStyle?'has-style':''}" ${privateBtnStyle} onclick="openPrivateChatModal('${username}')">@</button>
+                ${showPrivateBtn?`<button class="private-chat-btn ${privateBtnStyle?'has-style':''}" ${privateBtnStyle} onclick="openPrivateChatModal('${username}')">@</button>`:''}
                 ${canModerate?`<div class="admin-controls"><button class="admin-btn mute" onclick="muteUser('${username}')">${isMuted?'Unmute':'Mute'}</button><button class="admin-btn" onclick="kickUser('${username}')">Kick</button></div>`:''}
                 <div class="status-dot"></div>`;
         }
 
         function updateUserList() {
             Object.keys(activeUsers).forEach(username => {
-                if (username === currentUser) return;
                 const el = document.getElementById('user-item-'+username);
                 if (el) {
                     el.innerHTML = renderUserListItem(username);
